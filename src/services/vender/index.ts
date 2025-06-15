@@ -1,142 +1,173 @@
-export const createVisaProcessing = async (body: any, db: any) => {
-    try {
-      const now = new Date();
-  
-      const newVisaProcessing = await db
-        .insertInto('visa_processing')
-        .values({
-          employee_name: body.employee_name,
-          file_number: body.file_number,
-          reference: body.reference,
-          sponsor_name: body.sponsor_name,
-          visa_number: body.visa_number,
-          id_number: body.id_number,
-          embassy: body.embassy,
-          passport_detail: body.passport_detail,
-          e_number: body.e_number,
-          customer_add: body.customer_add,
-          ptn_permission: body.ptn_permission,
-          embassy_send_date: body.embassy_send_date,
-          embassy_return_date: body.embassy_return_date,
-          protector_date: body.protector_date,
-          expiry_medical_date: body.expiry_medical_date,
-          passport_deliver_date: body.passport_deliver_date,
-          receivable_amount: body.receivable_amount,
-          additional_charges: body.additional_charges,
-          pay_for_protector: body.pay_for_protector,
-          paid_cash: body.paid_cash,
-          paid_in_bank: body.paid_in_bank,
-          profit: body.profit,
-          remaining_amount: body.remaining_amount
-        })
-        .returningAll()
-        .executeTakeFirst();
-  
-      return {
-        status: 'success',
-        code: 201,
-        message: 'Visa processing entry created successfully',
-        data: newVisaProcessing
-      };
-    } catch (error) {
-      console.error('Error in createVisaProcessing service:', error);
-      return {
-        status: 'error',
-        code: 500,
-        message: 'Failed to create visa processing entry',
-        errors: error.message
-      };
-    }
-  };
+export const createVender = async (body: any, db: any) => {
+  try {
+    const newVender = await db
+      .insertInto('vender')
+      .values({
+        user_name: body.user_name,
+        entry: body.entry,
+        date: body.date,
+        amount: body.amount,
+        bank_title: body.bank_title,
+        debit: parseFloat(body.debit) || 0,
+        credit: parseFloat(body.credit) || 0,
+        file_path: body.file_path, 
+        withdraw:parseFloat(body.withdraw) || 0
+      })
+      .returningAll()
+      .executeTakeFirst();
 
-  export const updateVisaProcessing = async (id: number, body: any, db: any) => {
-    try {
-      const updatedVisaProcessing = await db
-        .updateTable('visa_processing')
-        .set({
-          employee_name: body.employee_name,
-         
-          file_number: body.file_number,
-          reference: body.reference,
-          sponsor_name: body.sponsor_name,
-          visa_number: body.visa_number,
-          id_number: body.id_number,
-          embassy: body.embassy,
-          passport_detail: body.passport_detail,
-          e_number: body.e_number,
-          customer_add: body.customer_add,
-          ptn_permission: body.ptn_permission,
-          embassy_send_date: body.embassy_send_date,
-          embassy_return_date: body.embassy_return_date,
-          protector_date: body.protector_date,
-          expiry_medical_date: body.expiry_medical_date,
-          passport_deliver_date: body.passport_deliver_date,
-          receivable_amount: body.receivable_amount,
-          additional_charges: body.additional_charges,
-          pay_for_protector: body.pay_for_protector,
-          paid_cash: body.paid_cash,
-          paid_in_bank: body.paid_in_bank,
-          profit: body.profit,
-          remaining_amount: body.remaining_amount
-        })
-        .where('id', '=', id)
-        .returningAll()
-        .executeTakeFirst();
-  
-      if (!updatedVisaProcessing) {
-        return {
-          status: 'error',
-          code: 404,
-          message: 'Visa processing record not found'
-        };
-      }
-  
-      return {
-        status: 'success',
-        code: 200,
-        message: 'Visa processing record updated successfully',
-        data: updatedVisaProcessing
-      };
-    } catch (error) {
-      console.error('Error in updateVisaProcessing service:', error);
-      return {
-        status: 'error',
-        code: 500,
-        message: 'Failed to update visa processing record',
-        errors: error.message
-      };
-    }
-  };
-  
-  export const deleteVisaProcessing = async (id: number, db: any) => {
-    try {
-      const deletedVisaProcessing = await db
-        .deleteFrom('visa_processing')
-        .where('id', '=', id)
-        .returningAll()
-        .executeTakeFirst();
-  
-      if (!deletedVisaProcessing) {
-        return {
-          status: 'error',
-          code: 404,
-          message: 'Visa processing record not found'
-        };
-      }
-  
-      return {
-        status: 'success',
-        code: 200,
-        message: 'Visa processing record deleted successfully'
-      };
-    } catch (error) {
-      console.error('Error in deleteVisaProcessing service:', error);
+    return {
+      status: 'success',
+      code: 201,
+      message: 'Vender created successfully',
+      vender: newVender
+    };
+  } catch (error) {
+    console.error('Error in createVender:', error);
+    return {
+      status: 'error',
+      code: 500,
+      message: 'Failed to create vender',
+      errors: error.message
+    };
+  }
+};
+
+export const getVender = async (db: any) => {
+  try {
+    const vender = await db
+      .selectFrom('vender')
+      .selectAll()
+      .execute();
+
+    return {
+      status: 'success',
+      code: 200,
+      vender: vender
+    };
+  } catch (error) {
+    console.error('Error in getVender:', error);
+    return {
+      status: 'error',
+      code: 500,
+      message: 'Failed to fetch vender',
+      errors: error.message
+    };
+  }
+};
+
+export const getVenderById = async (id: number, db: any) => {
+  try {
+    const vender = await db
+      .selectFrom('vender')
+      .selectAll()
+      .where('id', '=', id)
+      .executeTakeFirst();
+
+    if (!vender) {
       return {
         status: 'error',
-        code: 500,
-        message: 'Failed to delete visa processing record',
-        errors: error.message
+        code: 404,
+        message: 'Vender not found'
       };
     }
-  };
-  
+
+    return {
+      status: 'success',
+      code: 200,
+      vender: vender
+    };
+  } catch (error) {
+    console.error('Error in getVenderById:', error);
+    return {
+      status: 'error',
+      code: 500,
+      message: 'Failed to fetch vender',
+      errors: error.message
+    };
+  }
+};
+
+export const updateVender = async (id: number, body: any, db: any) => {
+  try {
+    // Build update object, only including file_path if a new file was uploaded
+    const updateData: any = {
+      user_name: body.user_name,
+      entry: body.entry,
+      date: body.date,
+      amount: body.amount,
+      bank_title: body.bank_title,
+      debit: parseFloat(body.debit) || 0,
+      credit: parseFloat(body.credit) || 0,
+      withdraw:parseFloat(body.withdraw) || 0
+    };
+
+    // Only update file_path if a new file was provided
+    if (body.file_path !== null) {
+      updateData.file_path = body.file_path;
+    }
+
+    const updatedVender = await db
+      .updateTable('vender')
+      .set(updateData)
+      .where('id', '=', id)
+      .returningAll()
+      .executeTakeFirst();
+
+    if (!updatedVender) {
+      return {
+        status: 'error',
+        code: 404,
+        message: 'Vender not found'
+      };
+    }
+
+    return {
+      status: 'success',
+      code: 200,
+      message: 'Vender updated successfully',
+      vender: updatedVender
+    };
+  } catch (error) {
+    console.error('Error in updateVender:', error);
+    return {
+      status: 'error',
+      code: 500,
+      message: 'Failed to update vender',
+      errors: error.message
+    };
+  }
+};
+
+export const deleteVender = async (id: number, db: any) => {
+  try {
+    const deletedVender = await db
+      .deleteFrom('vender')
+      .where('id', '=', id)
+      .returningAll()
+      .executeTakeFirst();
+
+    if (!deletedVender) {
+      return {
+        status: 'error',
+        code: 404,
+        message: 'Vender not found'
+      };
+    }
+
+    return {
+      status: 'success',
+      code: 200,
+      message: 'Vender deleted successfully',
+      vender: deletedVender
+    };
+  } catch (error) {
+    console.error('Error in deleteVender:', error);
+    return {
+      status: 'error',
+      code: 500,
+      message: 'Failed to delete vender',
+      errors: error.message
+    };
+  }
+};
