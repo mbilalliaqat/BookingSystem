@@ -1,0 +1,6 @@
+CREATE INDEX idx_images_user_id ON Images(user_id);
+CREATE INDEX idx_images_upload_timestamp ON Images(upload_timestamp);
+
+
+CREATE INDEX idx_analysis_status ON Analysis(status);
+CREATE INDEX idx_analysis_image_id ON Analysis(image_id);
