@@ -12,7 +12,7 @@ app.onError((err, c) => {
 const ALLOWED_ORIGINS = new Set([
   'localhost',
   '127.0.0.1',
-  'bookingms.mubihussain-te.workers.dev',
+  'bookingsms.mbilalliaqat01.workers.dev',
 ]);
 
 // CORS Middleware
