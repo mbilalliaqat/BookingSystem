@@ -1,3 +1,5 @@
+import { incrementEntryCounts } from "../counters";
+
 export const createVisaProcessing = async (body: any, db: any) => {
     try {
       const now = new Date();
@@ -31,6 +33,10 @@ export const createVisaProcessing = async (body: any, db: any) => {
         })
         .returningAll()
         .executeTakeFirst();
+
+        if (newVisaProcessing) {
+        await incrementEntryCounts('visa', db); 
+      }
   
       return {
         status: 'success',

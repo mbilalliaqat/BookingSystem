@@ -1,6 +1,7 @@
 import app from '../app';
 import {  loginUser, signupUser, getPendingUsers } from '../services/users';
 import { checkLogin, adminOnly } from '../middlewares';
+import { incrementEntryCounts,getEntryCounts  } from '../services/counters';
 
 
 
@@ -291,6 +292,8 @@ app.post('/test', async (c) => {
   }
 });
 
+
+
 app.post('/umrah', async (c) => {
   try {
     // Get request body
@@ -330,6 +333,10 @@ app.post('/umrah', async (c) => {
       })
       .returningAll()
       .executeTakeFirst();
+
+      if (newUmrah) {
+        await incrementEntryCounts('Umrah', db); 
+      }
     
     return c.json(
       {

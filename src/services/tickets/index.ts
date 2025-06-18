@@ -1,3 +1,5 @@
+import { incrementEntryCounts } from "../counters";
+
 export const createTicket = async (body: any, db: any) => {
     try {
       const now = new Date();
@@ -31,6 +33,10 @@ export const createTicket = async (body: any, db: any) => {
         .returningAll()
         .executeTakeFirst();
   
+         if (newTicket) {
+        await incrementEntryCounts('ticket', db); 
+      }
+
       return {
         status: 'success',
         code: 201,
