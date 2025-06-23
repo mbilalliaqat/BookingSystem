@@ -296,14 +296,11 @@ app.post('/test', async (c) => {
 
 app.post('/umrah', async (c) => {
   try {
-    // Get request body
     const body = await c.req.json();
     const now = new Date();
-    
-    // Access database from global environment
-    let db = globalThis.env.DB; 
-    
-    // Insert ticket into database with corrected column names
+    const [currentEntryNumber] = body.entry.split('/').map(Number); // Extract current entry number
+    let db = globalThis.env.DB;
+
     const newUmrah = await db
       .insertInto('Umrah')
       .values({
@@ -316,13 +313,13 @@ app.post('/umrah', async (c) => {
         return_date: new Date(body.return_date),
         sector: body.sector,
         airline: body.airline,
-         adults: body.adults, // Add adults field
-        children: body.children, // Add children field
+        adults: body.adults,
+        children: body.children,
         infants: body.infants,
         passportDetail: body.passportDetail,
         receivableAmount: body.receivableAmount,
         paidCash: body.paidCash,
-        bank_title:body.bank_title,
+        bank_title: body.bank_title,
         paidInBank: body.paidInBank,
         payableToVendor: body.payableToVendor,
         vendorName: body.vendorName,
@@ -334,10 +331,10 @@ app.post('/umrah', async (c) => {
       .returningAll()
       .executeTakeFirst();
 
-      if (newUmrah) {
-        await incrementEntryCounts('Umrah', db); 
-      }
-    
+    if (newUmrah) {
+      await incrementEntryCounts('umrah', currentEntryNumber, db); // Pass actualEntryNumber
+    }
+
     return c.json(
       {
         status: 'success',
@@ -348,7 +345,6 @@ app.post('/umrah', async (c) => {
     );
   } catch (error) {
     console.error('Error creating umrah:', error);
-    
     return c.json(
       {
         status: 'error',

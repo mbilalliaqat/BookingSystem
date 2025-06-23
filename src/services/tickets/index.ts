@@ -1,58 +1,61 @@
-import { incrementEntryCounts } from "../counters";
+import { incrementEntryCounts  } from "../counters";
+
+
 
 export const createTicket = async (body: any, db: any) => {
-    try {
-      const now = new Date();
-      
-      const newTicket = await db
-        .insertInto('ticket')
-        .values({
-            employee_name: body.employee_name,               // changed from 'username'
-            entry: body.entry,
-            customer_add: body.customer_add,
-            reference: body.reference,
-            depart_date: body.depart_date,
-            return_date:body.return_date,
-            sector: body.sector,
-            airline: body.airline,
-             adults: body.adults, // Update adults field
-            children: body.children, // Update children field
-            infants: body.infants,
-            passport_detail: body.passport_detail,
-            receivable_amount: body.receivable_amount,
-            paid_cash: body.paid_cash,
-            bank_title:body.bank_title,
-            paid_in_bank: body.paid_in_bank,
-            payable_to_vendor: body.payable_to_vendor,
-            vendor_name: body.vendor_name,
-            profit: body.profit,
-            remaining_amount: body.remaining_amount,
-            created_at: now,
-          
-        })
-        .returningAll()
-        .executeTakeFirst();
-  
-         if (newTicket) {
-        await incrementEntryCounts('ticket', db); 
-      }
+  try {
+    const now = new Date();
+    const [currentEntryNumber] = body.entry.split('/').map(Number); // Extract current entry number
 
-      return {
-        status: 'success',
-        code: 201,
-        message: 'Ticket created successfully',
-        ticket: newTicket
-      };
-    } catch (error) {
-      console.error('Error in createTicket service:', error);
-      return {
-        status: 'error',
-        code: 500,
-        message: 'Failed to create ticket',
-        errors: error.message
-      };
+    const newTicket = await db
+      .insertInto('ticket')
+      .values({
+        employee_name: body.employee_name,
+        entry: body.entry,
+        customer_add: body.customer_add,
+        reference: body.reference,
+        depart_date: body.depart_date,
+        return_date: body.return_date,
+        sector: body.sector,
+        airline: body.airline,
+        adults: body.adults,
+        children: body.children,
+        infants: body.infants,
+        passport_detail: body.passport_detail,
+        receivable_amount: body.receivable_amount,
+        paid_cash: body.paid_cash,
+        bank_title: body.bank_title,
+        paid_in_bank: body.paid_in_bank,
+        payable_to_vendor: body.payable_to_vendor,
+        vendor_name: body.vendor_name,
+        agent_name: body.agent_name,
+        profit: body.profit,
+        remaining_amount: body.remaining_amount,
+        created_at: now,
+      })
+      .returningAll()
+      .executeTakeFirst();
+
+    if (newTicket) {
+      await incrementEntryCounts('ticket', currentEntryNumber, db); 
     }
-  };
+
+    return {
+      status: 'success',
+      code: 201,
+      message: 'Ticket created successfully',
+      ticket: newTicket
+    };
+  } catch (error) {
+    console.error('Error in createTicket service:', error);
+    return {
+      status: 'error',
+      code: 500,
+      message: 'Failed to create ticket',
+      errors: error.message
+    };
+  }
+};
 
   export const updateTicket = async (id: number, body: any, db: any) => {
     try {
@@ -60,7 +63,7 @@ export const createTicket = async (body: any, db: any) => {
       const updatedTicket = await db
         .updateTable('ticket')
         .set({
-          employee_name: body.employee_name,               // changed from 'username'
+          employee_name: body.employee_name,               
             entry: body.entry,
             customer_add: body.customer_add,
             reference: body.reference,
@@ -78,6 +81,7 @@ export const createTicket = async (body: any, db: any) => {
             paid_in_bank: body.paid_in_bank,
             payable_to_vendor: body.payable_to_vendor,
             vendor_name: body.vendor_name,
+            agent_name: body.agent_name,
             profit: body.profit,
             remaining_amount: body.remaining_amount,
             created_at: now,
@@ -144,5 +148,3 @@ export const createTicket = async (body: any, db: any) => {
       };
     }
   };
-
-  
