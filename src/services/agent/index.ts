@@ -5,34 +5,25 @@ export const createAgent = async (body: any, db: any) => {
         status: 'error',
         code: 400,
         message: 'Agent name is required'
-      }
+      };
     }
 
-    // Get the previous balance for this agent
-    let previousBalance = 0;
-    const latestRecord = await db
-      .selectFrom('agent')
-      .select('balance')
-      .where('agent_name', '=', body.agent_name)
-      .orderBy('id', 'desc')
-      .limit(1)
-      .executeTakeFirst();
-
-    if (latestRecord) {
-      previousBalance = Number(latestRecord.balance);
-    }
-
-    // Calculate new balance
-    let newBalance = previousBalance;
+    // Parse and validate credit/debit values
     let credit = 0;
     let debit = 0;
 
-    if (body.credit && Number(body.credit) > 0) {
-      credit = Number(body.credit);
-      newBalance += credit;
-    } else if (body.debit && Number(body.debit) > 0) {
-      debit = Number(body.debit);
-      newBalance -= debit;
+    if (body.credit !== undefined && body.credit !== null && body.credit !== '') {
+      const creditValue = Number(body.credit);
+      if (!isNaN(creditValue) && creditValue > 0) {
+        credit = creditValue;
+      }
+    }
+    
+    if (body.debit !== undefined && body.debit !== null && body.debit !== '') {
+      const debitValue = Number(body.debit);
+      if (!isNaN(debitValue) && debitValue > 0) {
+        debit = debitValue;
+      }
     }
 
     // Prevent both credit and debit in same transaction
@@ -41,43 +32,72 @@ export const createAgent = async (body: any, db: any) => {
         status: 'error',
         code: 400,
         message: 'Cannot have both credit and debit in the same transaction'
-      }
+      };
     }
 
-    const newAgent = await db
+    // At least one of credit or debit should be provided
+    if (credit === 0 && debit === 0) {
+      return {
+        status: 'error',
+        code: 400,
+        message: 'Either credit or debit amount is required'
+      };
+    }
+
+    // Get the current balance for this agent
+    let currentBalance = 0;
+    const latestRecord = await db
+      .selectFrom('agent')
+      .select(['balance'])
+      .where('agent_name', '=', body.agent_name)
+      .orderBy('date', 'desc')
+      .orderBy('id', 'desc')
+      .limit(1)
+      .executeTakeFirst();
+
+    if (latestRecord) {
+      currentBalance = Number(latestRecord.balance) || 0;
+    }
+
+    // Calculate new balance: current + credit - debit
+    const newBalance = currentBalance + credit - debit;
+
+    // Insert the new entry
+    const newAgentRecord = await db
       .insertInto('agent')
       .values({
-        agent_name: body.agent_name,
+        agent_name: body.agent_name || '',
         date: body.date,
-        employee: body.employee,
-        entry: body.entry,
-        detail: body.detail,
-        credit: credit || null,
-        debit: debit || null,
+        employee: body.employee || '',
+        entry: body.entry || '',
+        detail: body.detail || '',
+        credit: credit > 0 ? credit : null,
+        debit: debit > 0 ? debit : null,
         balance: newBalance
       })
       .returningAll()
       .executeTakeFirst();
+
+    console.log(`Created agent entry for agent: ${body.agent_name}, Credit: ${credit}, Debit: ${debit}, Previous Balance: ${currentBalance}, New Balance: ${newBalance}`);
 
     return {
       status: 'success',
       code: 201,
       message: 'Agent transaction created successfully',
       agent: {
-        id: newAgent.id,
-        agent_name: newAgent.agent_name,
-        date: newAgent.date,
-        employee: newAgent.employee,
-        entry: newAgent.entry,
-        detail: newAgent.detail,
-        credit: Number(newAgent.credit) || 0,
-        debit: Number(newAgent.debit) || 0,
-        balance: Number(newAgent.balance)
+        id: newAgentRecord.id,
+        agent_name: newAgentRecord.agent_name,
+        date: newAgentRecord.date,
+        employee: newAgentRecord.employee,
+        entry: newAgentRecord.entry,
+        detail: newAgentRecord.detail,
+        credit: Number(newAgentRecord.credit) || 0,
+        debit: Number(newAgentRecord.debit) || 0,
+        balance: Number(newAgentRecord.balance)
       }
-    }
-
+    };
   } catch (error) {
-    console.error('Error creating entry:', error);
+    console.error('Error creating agent entry:', error);
     return {
       status: 'error',
       code: 500,
@@ -114,7 +134,7 @@ export const getAgent = async (db: any) => {
       agents: formattedAgents
     };
   } catch (error) {
-    console.error('Error getting agent:', error);
+    console.error('Error getting agents:', error);
     return {
       status: 'error',
       code: 500,
@@ -153,7 +173,7 @@ export const getAgentByName = async (agent_name: string, db: any) => {
       agents: formattedAgents
     }
   } catch (error) {
-    console.error('Error getting agent:', error);
+    console.error('Error getting agent by name:', error);
     return {
       status: 'error',
       code: 500,
@@ -165,140 +185,136 @@ export const getAgentByName = async (agent_name: string, db: any) => {
 
 export const updateAgent = async (id: number, body: any, db: any) => {
   try {
-    // First get the entry to be updated
-    const existingAgent = await db
-      .selectFrom('agent')
-      .selectAll()
-      .where('id', '=', id)
-      .executeTakeFirst();
+    // Start a transaction
+    const result = await db.transaction().execute(async (trx) => {
+      // Get the existing entry
+      const existingAgent = await trx
+        .selectFrom('agent')
+        .selectAll()
+        .where('id', '=', id)
+        .executeTakeFirst();
 
-    if (!existingAgent) {
-      return {
-        status: 'error',
-        code: 404,
-        message: 'Agent record not found'
-      }
-    }
-
-    // Get all entries for the agent in chronological order
-    const allEntries = await db
-      .selectFrom('agent')
-      .select(['id', 'credit', 'debit', 'balance'])
-      .where('agent_name', '=', existingAgent.agent_name)
-      .orderBy('date', 'asc')
-      .orderBy('id', 'asc')
-      .execute();
-
-    // Calculate new credit and debit values
-    let credit = 0;
-    let debit = 0;
-
-    if (body.credit !== undefined) {
-      if (Number(body.credit) > 0) {
-        credit = Number(body.credit);
-      }
-    } else {
-      credit = Number(existingAgent.credit) || 0;
-    }
-
-    if (body.debit !== undefined) {
-      if (Number(body.debit) > 0) {
-        debit = Number(body.debit);
-      }
-    } else {
-      debit = Number(existingAgent.debit) || 0;
-    }
-
-    // Prevent both credit and debit in same transaction
-    if (credit > 0 && debit > 0) {
-      return {
-        status: 'error',
-        code: 400,
-        message: 'Cannot have both credit and debit in the same transaction'
-      }
-    }
-
-    // Calculate the difference in balance this change will cause
-    const oldContribution = Number(existingAgent.credit) - Number(existingAgent.debit);
-    const newContribution = credit - debit;
-    const balanceDifference = newContribution - oldContribution;
-
-    // Update the current entry
-    const updatedAgent = await db
-      .updateTable('agent')
-      .set({
-        agent_name: body.agent_name || existingAgent.agent_name,
-        date: body.date || existingAgent.date,
-        employee: body.employee || existingAgent.employee,
-        entry: body.entry || existingAgent.entry,
-        detail: body.detail || existingAgent.detail,
-        credit: credit || null,
-        debit: debit || null,
-        // Don't update balance here, we'll do it separately for all affected entries
-      })
-      .where('id', '=', id)
-      .returningAll()
-      .executeTakeFirst();
-
-    if (!updatedAgent) {
-      return {
-        status: 'error',
-        code: 500,
-        message: 'Failed to update agent record'
-      };
-    }
-
-    // Update balances for all entries from this point forward
-    if (balanceDifference !== 0) {
-      // Find the index of the updated entry
-      const entryIndex = allEntries.findIndex(entry => entry.id === id);
-
-      if (entryIndex !== -1) {
-        // Update balances for all subsequent entries (including current one)
-        for (let i = entryIndex; i < allEntries.length; i++) {
-          const currentEntry = allEntries[i];
-          const newBalance = Number(currentEntry.balance) + balanceDifference;
-
-          await db
-            .updateTable('agent')
-            .set({
-              balance: newBalance
-            })
-            .where('id', '=', currentEntry.id)
-            .execute();
-
-          // Update the balance in our local entry if it's the one we're returning
-          if (currentEntry.id === id) {
-            updatedAgent.balance = newBalance;
-          }
+      if (!existingAgent) {
+        return {
+          status: 'error',
+          code: 404,
+          message: 'Agent record not found'
         }
       }
-    }
 
-    // Get the updated entry with correct balance
-    const finalAgent = await db
-      .selectFrom('agent')
-      .selectAll()
-      .where('id', '=', id)
-      .executeTakeFirst();
+      // Store old credit and debit values
+      const oldCredit = Number(existingAgent.credit) || 0;
+      const oldDebit = Number(existingAgent.debit) || 0;
 
-    return {
-      status: 'success',
-      code: 200,
-      message: 'Agent record updated successfully',
-      agent: {
-        id: finalAgent.id,
-        agent_name: finalAgent.agent_name,
-        date: finalAgent.date,
-        employee: finalAgent.employee,
-        entry: finalAgent.entry,
-        detail: finalAgent.detail,
-        credit: Number(finalAgent.credit) || 0,
-        debit: Number(finalAgent.debit) || 0,
-        balance: Number(finalAgent.balance)
+      // Calculate new credit and debit values
+      let credit = 0;
+      let debit = 0;
+
+      if (body.credit !== undefined) {
+        if (body.credit === null || body.credit === '' || body.credit === '0') {
+          credit = 0;
+        } else {
+          const creditValue = Number(body.credit);
+          if (!isNaN(creditValue) && creditValue > 0) {
+            credit = creditValue;
+          }
+        }
+      } else {
+        credit = oldCredit;
       }
-    };
 
+      if (body.debit !== undefined) {
+        if (body.debit === null || body.debit === '' || body.debit === '0') {
+          debit = 0;
+        } else {
+          const debitValue = Number(body.debit);
+          if (!isNaN(debitValue) && debitValue > 0) {
+            debit = debitValue;
+          }
+        }
+      } else {
+        debit = oldDebit;
+      }
+
+      // Prevent both credit and debit in same transaction
+      if (credit > 0 && debit > 0) {
+        return {
+          status: 'error',
+          code: 400,
+          message: 'Cannot have both credit and debit in the same transaction'
+        }
+      }
+
+      // At least one of credit or debit should be provided
+      if (credit === 0 && debit === 0) {
+        return {
+          status: 'error',
+          code: 400,
+          message: 'Either credit or debit amount is required'
+        }
+      }
+
+      // Calculate balance difference
+      const oldBalance = oldCredit - oldDebit;
+      const newBalance = credit - debit;
+      const balanceDifference = newBalance - oldBalance;
+
+      const newAgentName = body.agent_name || existingAgent.agent_name;
+
+      // Update the current entry
+      const updatedAgent = await trx
+        .updateTable('agent')
+        .set({
+          agent_name: newAgentName,
+          date: body.date || existingAgent.date,
+          employee: body.employee !== undefined ? body.employee : existingAgent.employee,
+          entry: body.entry !== undefined ? body.entry : existingAgent.entry,
+          detail: body.detail !== undefined ? body.detail : existingAgent.detail,
+          credit: credit > 0 ? credit : null,
+          debit: debit > 0 ? debit : null,
+          balance: Number(existingAgent.balance) + balanceDifference // Update balance for current entry
+        })
+        .where('id', '=', id)
+        .returningAll()
+        .executeTakeFirst();
+
+      if (!updatedAgent) {
+        return {
+          status: 'error',
+          code: 500,
+          message: 'Failed to update agent record'
+        };
+      }
+
+      // Update subsequent balances for the new agent name
+      await updateSubsequentBalances(newAgentName, id, balanceDifference, trx);
+
+      // If agent name changed, update balances for the old agent name
+      if (existingAgent.agent_name !== newAgentName) {
+        await updateSubsequentBalancesAfterDelete(existingAgent.agent_name, id, oldCredit - oldDebit, trx);
+      }
+
+      console.log(`Updated agent entry ID ${id}: ${newAgentName}, Credit: ${credit}, Debit: ${debit}, New Balance: ${updatedAgent.balance}`);
+
+      return {
+        status: 'success',
+        code: 200,
+        message: 'Agent record updated successfully',
+        agent: {
+          id: updatedAgent.id,
+          agent_name: updatedAgent.agent_name,
+          date: updatedAgent.date,
+          employee: updatedAgent.employee,
+          entry: updatedAgent.entry,
+          detail: updatedAgent.detail,
+          credit: Number(updatedAgent.credit) || 0,
+          debit: Number(updatedAgent.debit) || 0,
+          balance: Number(updatedAgent.balance)
+        }
+      };
+    });
+
+    return result;
   } catch (error) {
     console.error('Error updating agent:', error);
     return {
@@ -312,57 +328,47 @@ export const updateAgent = async (id: number, body: any, db: any) => {
 
 export const deleteAgent = async (id: number, db: any) => {
   try {
-    // First get the entry to be deleted
-    const existingAgent = await db
-      .selectFrom('agent')
-      .select(['id', 'agent_name', 'credit', 'debit'])
-      .where('id', '=', id)
-      .executeTakeFirst();
+    // Start a transaction
+    const result = await db.transaction().execute(async (trx) => {
+      // Get the entry to be deleted
+      const existingAgent = await trx
+        .selectFrom('agent')
+        .selectAll()
+        .where('id', '=', id)
+        .executeTakeFirst();
 
-    if (!existingAgent) {
-      return {
-        status: 'error',
-        code: 404,
-        message: 'Agent record not found'
-      };
-    }
+      if (!existingAgent) {
+        return {
+          status: 'error',
+          code: 404,
+          message: 'Agent record not found'
+        };
+      }
 
-    // Calculate the balance impact of this entry
-    const balanceImpact = Number(existingAgent.credit) - Number(existingAgent.debit);
+      const agentName = existingAgent.agent_name;
+      const deletedCredit = Number(existingAgent.credit) || 0;
+      const deletedDebit = Number(existingAgent.debit) || 0;
+      const balanceChange = deletedCredit - deletedDebit;
 
-    // Get all entries for the agent in chronological order
-    const allEntries = await db
-      .selectFrom('agent')
-      .select(['id', 'balance'])
-      .where('agent_name', '=', existingAgent.agent_name)
-      .orderBy('date', 'asc')
-      .orderBy('id', 'asc')
-      .execute();
-
-    // Find the index of the entry to be deleted
-    const entryIndex = allEntries.findIndex(entry => entry.id === id);
-
-    if (entryIndex !== -1) {
       // Delete the entry
-      const deletedAgent = await db
+      const deletedAgent = await trx
         .deleteFrom('agent')
         .where('id', '=', id)
         .returningAll()
         .executeTakeFirst();
 
-      // Update balances for all subsequent entries
-      for (let i = entryIndex + 1; i < allEntries.length; i++) {
-        const currentEntry = allEntries[i];
-        const newBalance = Number(currentEntry.balance) - balanceImpact;
-
-        await db
-          .updateTable('agent')
-          .set({
-            balance: newBalance
-          })
-          .where('id', '=', currentEntry.id)
-          .execute();
+      if (!deletedAgent) {
+        return {
+          status: 'error',
+          code: 500,
+          message: 'Failed to delete agent record'
+        };
       }
+
+      // Update subsequent balances
+      await updateSubsequentBalancesAfterDelete(agentName, id, balanceChange, trx);
+
+      console.log(`Deleted agent entry ID ${id}: ${agentName}`);
 
       return {
         status: 'success',
@@ -380,14 +386,9 @@ export const deleteAgent = async (id: number, db: any) => {
           balance: Number(deletedAgent.balance)
         }
       };
-    }
+    });
 
-    return {
-      status: 'error',
-      code: 500,
-      message: 'Failed to delete agent record'
-    };
-
+    return result;
   } catch (error) {
     console.error('Error in deleteAgent:', error);
     return {
@@ -401,26 +402,25 @@ export const deleteAgent = async (id: number, db: any) => {
 
 export const getExistingAgentNames = async (db: any) => {
   try {
-    const agentName = await db 
-     .selectFrom('agent')
-     .select('agent_name')
-     .distinct()
-     .where ('agent_name', 'is not', null)
-     .where('agent_name', '!=', '')
-     .orderBy('agent_name', 'asc')
-    .execute();
+    const agentNames = await db 
+      .selectFrom('agent')
+      .select('agent_name')
+      .distinct()
+      .where('agent_name', 'is not', null)
+      .where('agent_name', '!=', '')
+      .orderBy('agent_name', 'asc')
+      .execute();
 
-    const formattedNames = agentName.map(item => item.agent_name);
+    const formattedNames = agentNames.map(item => item.agent_name);
 
-      return {
+    return {
       status: 'success',
       code: 200,
       agentNames: formattedNames
     };
     
-  }
-  catch(error){
-     console.error('Error getting agent names:', error);
+  } catch (error) {
+    console.error('Error getting agent names:', error);
     return {
       status: 'error',
       code: 500,
@@ -429,3 +429,122 @@ export const getExistingAgentNames = async (db: any) => {
     };
   } 
 }
+
+// Helper function to update balances for the updated entry and subsequent entries
+const updateSubsequentBalances = async (agentName: string, updatedId: number, balanceDifference: number, db: any) => {
+  try {
+    // Get all entries for this agent that come after the updated entry
+    const entriesToUpdate = await db
+      .selectFrom('agent')
+      .select(['id', 'balance', 'date'])
+      .where('agent_name', '=', agentName)
+      .where('id', '>', updatedId) // Only update subsequent entries
+      .orderBy('date', 'asc')
+      .orderBy('id', 'asc')
+      .execute();
+
+    // Update each entry's balance
+    for (const entry of entriesToUpdate) {
+      const newBalance = Number(entry.balance) + balanceDifference;
+      
+      await db
+        .updateTable('agent')
+        .set({ balance: newBalance })
+        .where('id', '=', entry.id)
+        .execute();
+    }
+  } catch (error) {
+    console.error('Error updating subsequent balances:', error);
+    throw error;
+  }
+};
+
+// Helper function to update balances after deletion
+const updateSubsequentBalancesAfterDelete = async (agentName: string, deletedId: number, balanceChange: number, db: any) => {
+  try {
+    // Get all entries for this agent that come after the deleted entry
+    const entriesToUpdate = await db
+      .selectFrom('agent')
+      .select(['id', 'balance', 'date'])
+      .where('agent_name', '=', agentName)
+      .where('id', '>', deletedId)
+      .orderBy('date', 'asc')
+      .orderBy('id', 'asc')
+      .execute();
+
+    // Update each subsequent entry's balance
+    for (const entry of entriesToUpdate) {
+      const newBalance = Number(entry.balance) - balanceChange;
+      
+      await db
+        .updateTable('agent')
+        .set({ balance: newBalance })
+        .where('id', '=', entry.id)
+        .execute();
+    }
+  } catch (error) {
+    console.error('Error updating balances after deletion:', error);
+    throw error;
+  }
+};
+
+// Utility function to fix all existing balances (run this once if needed)
+export const fixAllAgentBalances = async (db: any) => {
+  try {
+    console.log('Starting to fix all agent balances...');
+    
+    // Get all unique agent names
+    const agentNames = await db
+      .selectFrom('agent')
+      .select('agent_name')
+      .distinct()
+      .where('agent_name', 'is not', null)
+      .where('agent_name', '!=', '')
+      .execute();
+
+    // Recalculate balances for each agent
+    for (const agent of agentNames) {
+      // Get all entries for this agent in chronological order
+      const allEntries = await db
+        .selectFrom('agent')
+        .select(['id', 'credit', 'debit', 'date', 'balance'])
+        .where('agent_name', '=', agent.agent_name)
+        .orderBy('date', 'asc')
+        .orderBy('id', 'asc')
+        .execute();
+
+      let runningBalance = 0;
+
+      // Recalculate balance for each entry
+      for (const entry of allEntries) {
+        const credit = Number(entry.credit) || 0;
+        const debit = Number(entry.debit) || 0;
+        runningBalance = runningBalance + credit - debit;
+
+        // Update the entry with the new balance
+        await db
+          .updateTable('agent')
+          .set({ balance: runningBalance })
+          .where('id', '=', entry.id)
+          .execute();
+      }
+    }
+
+    console.log('Finished fixing all agent balances');
+    
+    return {
+      status: 'success',
+      code: 200,
+      message: 'All agent balances have been recalculated successfully'
+    };
+    
+  } catch (error) {
+    console.error('Error fixing agent balances:', error);
+    return {
+      status: 'error',
+      code: 500,
+      message: 'Failed to fix agent balances',
+      errors: error.message
+    };
+  }
+};

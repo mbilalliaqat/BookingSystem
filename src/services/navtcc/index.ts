@@ -14,6 +14,7 @@ export const createNavtcc = async (body: any, db: any) => {
           paid_cash: body.paid_cash,
           paid_from_bank: body.paid_from_bank,
           paid_in_bank: body.paid_in_bank,
+          payed_to_bank:body.payed_to_bank,
           profit: body.profit,
           remaining_amount: body.remaining_amount,
           created_at: now
@@ -54,6 +55,7 @@ export const createNavtcc = async (body: any, db: any) => {
           paid_cash: body.paid_cash,
           paid_from_bank: body.paid_from_bank,
           paid_in_bank: body.paid_in_bank,
+          payed_to_bank:body.payed_to_bank,
           profit: body.profit,
           remaining_amount: body.remaining_amount,
           created_at: now

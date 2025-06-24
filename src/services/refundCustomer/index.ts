@@ -13,8 +13,10 @@ export const createRefundCustomer = async (body: any, db: any) => {
           return_from_vendor: body.return_from_vendor,
           office_service_charges: body.office_service_charges,
           remaining_amount: body.remaining_amount,
+          bank_title:body.bank_title,
           paid_cash: body.paid_cash,
           paid_in_bank: body.paid_in_bank,
+          vender_name:body.vender_name,
           balance: body.balance,
         })
         .returningAll()
@@ -54,6 +56,8 @@ export const updateRefundCustomer = async (id: number, body: any, db: any) => {
           remaining_amount: body.remaining_amount,
           paid_cash: body.paid_cash,
           paid_in_bank: body.paid_in_bank,
+          bank_title:body.bank_title,
+          vender_name:body.vender_name,
           balance: body.balance,
         })
         .where('id', '=', id)
