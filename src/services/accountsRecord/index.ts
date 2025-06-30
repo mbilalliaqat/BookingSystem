@@ -1,7 +1,10 @@
+import { incrementEntryCounts } from "../counters";
 
 
 export const createEntry = async (body: any, db: any) => {
   try {
+
+     const [currentEntryNumber] = body.entry.split('/').map(Number);
     // Get the previous balance for this bank
     let previousBalance = 0;
     const latestEntry = await db
@@ -34,6 +37,7 @@ export const createEntry = async (body: any, db: any) => {
       .insertInto('office_accounts')
       .values({
         bank_name: body.bank_name,
+        entry:body.entry,
         employee_name:body.employee_name,
         date: body.date,
         detail: body.detail,
@@ -43,6 +47,10 @@ export const createEntry = async (body: any, db: any) => {
       })
       .returningAll()
       .executeTakeFirst();
+
+      if (newEntry) {
+            await incrementEntryCounts('account', currentEntryNumber, db); // Update entry_counters table
+          }
     
     // Format output
     return {
@@ -64,7 +72,7 @@ export const getEntriesByBank = async (bankName: string, db: any) => {
   try {
     const entries = await db
       .selectFrom('office_accounts')
-      .select(['id','employee_name', 'date', 'detail', 'credit', 'debit', 'balance'])
+      .select(['id','entry','employee_name', 'date', 'detail', 'credit', 'debit', 'balance'])
       .where('bank_name', '=', bankName)
       .orderBy('date', 'asc')
       .execute();
@@ -72,6 +80,7 @@ export const getEntriesByBank = async (bankName: string, db: any) => {
     // Format output
     return entries.map(entry => ({
       id: entry.id,
+      entry: entry.entry,
       employee_name:entry.employee_name,
       date: entry.date,
       detail: entry.detail,
@@ -144,6 +153,7 @@ export const updateEntry = async (id: number, body: any, db: any) => {
       .updateTable('office_accounts')
       .set({
         employee_name:body.employee_name,
+        entry:body.entry,
         date: body.date,
         detail: body.detail,
         credit: credit,

@@ -1,10 +1,16 @@
+import { incrementEntryCounts } from "../counters";
+
 export const createRefundCustomer = async (body: any, db: any) => {
     try {
+
+       const [currentEntryNumber] = body.entry.split('/').map(Number);
+
       const newRefundCustomer = await db
         .insertInto('refund_customer')
         .values({
           employee: body.employee,
           name: body.name,
+          entry:body.entry,
           date: body.date,
           passport: body.passport,
           reference: body.reference,
@@ -21,6 +27,10 @@ export const createRefundCustomer = async (body: any, db: any) => {
         })
         .returningAll()
         .executeTakeFirst();
+
+        if (newRefundCustomer) {
+              await incrementEntryCounts('refund', currentEntryNumber, db); // Update entry_counters table
+            }
 
       return {
         status: 'success',
@@ -46,6 +56,7 @@ export const updateRefundCustomer = async (id: number, body: any, db: any) => {
         .set({
           employee: body.employee,
           name: body.name,
+          entry:body.entry,
           date: body.date,
           passport: body.passport,
           reference: body.reference,

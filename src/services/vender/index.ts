@@ -1,5 +1,10 @@
+import { incrementEntryCounts } from "../counters";
+
 export const createVendor = async (body: any, db: any) => {
   try {
+
+     const [currentEntryNumber] = body.entry.split('/').map(Number);
+     
     if (!body.vender_name) {
       return {
         status: 'error',
@@ -76,6 +81,10 @@ export const createVendor = async (body: any, db: any) => {
       })
       .returningAll()
       .executeTakeFirst();
+
+        if (newVendor) {
+            await incrementEntryCounts('vender', currentEntryNumber, db); // Update entry_counters table
+          }
 
     return {
       status: 'success',

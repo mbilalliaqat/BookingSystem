@@ -1,5 +1,9 @@
+import { incrementEntryCounts } from "../counters";
+
 export const createAgent = async (body: any, db: any) => {
   try {
+
+     const [currentEntryNumber] = body.entry.split('/').map(Number);
     if (!body.agent_name) {
       return {
         status: 'error',
@@ -77,6 +81,10 @@ export const createAgent = async (body: any, db: any) => {
       })
       .returningAll()
       .executeTakeFirst();
+
+      if (newAgentRecord) {
+                  await incrementEntryCounts('agent', currentEntryNumber, db); // Update entry_counters table
+                }
 
     console.log(`Created agent entry for agent: ${body.agent_name}, Credit: ${credit}, Debit: ${debit}, Previous Balance: ${currentBalance}, New Balance: ${newBalance}`);
 

@@ -1,7 +1,10 @@
+import { incrementEntryCounts } from "../counters";
 
 
 export const createExpense = async (body: any, db: any) => {
   try {
+    const [currentEntryNumber] = body.entry.split('/').map(Number);
+
     const newExpense = await db
       .insertInto('expense')
       .values({
@@ -15,6 +18,10 @@ export const createExpense = async (body: any, db: any) => {
       })
       .returningAll()
       .executeTakeFirst();
+
+       if (newExpense) {
+            await incrementEntryCounts('expense', currentEntryNumber, db); // Update entry_counters table
+          }
 
     return {
       status: 'success',

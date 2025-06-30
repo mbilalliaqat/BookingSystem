@@ -2,7 +2,9 @@ import { incrementEntryCounts } from "../counters";
 
 export const createVisaProcessing = async (body: any, db: any) => {
     try {
+      
       const now = new Date();
+      const [currentEntryNumber] = body.entry.split('/').map(Number);
   
       const newVisaProcessing = await db
         .insertInto('visa_processing')
@@ -35,8 +37,8 @@ export const createVisaProcessing = async (body: any, db: any) => {
         .executeTakeFirst();
 
         if (newVisaProcessing) {
-        await incrementEntryCounts('visa', db); 
-      }
+      await incrementEntryCounts('visa', currentEntryNumber, db); // Update entry_counters table
+    }
   
       return {
         status: 'success',

@@ -1,12 +1,16 @@
+import { incrementEntryCounts } from "../counters";
+
 export const createNavtcc = async (body: any, db: any) => {
     try {
       const now = new Date();
+      const [currentEntryNumber] = body.entry.split('/').map(Number);
       
       const newNavtcc = await db
         .insertInto('navtcc')
         .values({
            employee_name: body.employee_name,
           customer_add: body.customer_add,
+           entry: body.entry,
           reference: body.reference,
           profession_key: body.profession_key,
           passport_detail: body.passport_detail,
@@ -22,6 +26,10 @@ export const createNavtcc = async (body: any, db: any) => {
         })
         .returningAll()
         .executeTakeFirst();
+
+          if (newNavtcc) {
+              await incrementEntryCounts('navtcc', currentEntryNumber, db); // Update entry_counters table
+            }
   
       return {
         status: 'success',
@@ -48,6 +56,7 @@ export const createNavtcc = async (body: any, db: any) => {
         .set({
            employee_name: body.employee_name,
           customer_add: body.customer_add,
+           entry: body.entry,
           reference: body.reference,
           profession_key: body.profession_key,
           passport_detail: body.passport_detail,

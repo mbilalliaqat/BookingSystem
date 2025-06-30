@@ -1,11 +1,15 @@
+import { incrementEntryCounts } from "../counters";
 
 
 export const createProtector = async (body: any, db:any) => {
   try {
+    const [currentEntryNumber] = body.entry.split('/').map(Number);
+
     const newProtector = await db
       .insertInto('protector')
       .values({
         name: body.name,
+         entry: body.entry,
         passport: body.passport,
         reference: body.reference,
         mcb_fee_6000_date: body.mcb_fee_6000_date,
@@ -19,6 +23,9 @@ export const createProtector = async (body: any, db:any) => {
       })
       .returningAll()
       .executeTakeFirst();
+        if (newProtector) {
+            await incrementEntryCounts('protector', currentEntryNumber, db); // Update entry_counters table
+          }
 
     return {
       status: 'success',
@@ -66,6 +73,7 @@ export const updateProtector = async (id: number, body: any,db:any) => {
       .updateTable('protector')
       .set({
         name: body.name,
+         entry: body.entry,
         passport: body.passport,
         reference: body.reference,
         mcb_fee_6000_date: body.mcb_fee_6000_date,

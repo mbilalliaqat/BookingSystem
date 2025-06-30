@@ -1,12 +1,16 @@
+import { incrementEntryCounts } from "../counters";
+
 export const createGamcaToken = async (body: any, db: any) => {
     try {
-      const now = new Date(); // Timestamp for created_at
+      const now = new Date(); 
+      const [currentEntryNumber] = body.entry.split('/').map(Number);
   
       const newGamcaToken = await db
         .insertInto('gamca_token') // Table name
         .values({
           employee_name: body.employee_name,
           customer_add: body.customer_add,
+           entry: body.entry,
           reference: body.reference,
           country: body.country,
           passport_detail: body.passport_detail,
@@ -21,6 +25,10 @@ export const createGamcaToken = async (body: any, db: any) => {
         .returningAll() // Return the full object of the inserted record
         .executeTakeFirst(); // Executes the query and returns the first row
   
+        if (newGamcaToken) {
+      await incrementEntryCounts('gamca', currentEntryNumber, db); // Update entry_counters table
+    }
+
       return {
         status: 'success',
         code: 201,
@@ -45,6 +53,7 @@ export const createGamcaToken = async (body: any, db: any) => {
         .set({
           employee_name: body.employee_name,
           customer_add: body.customer_add,
+           entry: body.entry,
           reference: body.reference,
           country: body.country,
           passport_detail: body.passport_detail,

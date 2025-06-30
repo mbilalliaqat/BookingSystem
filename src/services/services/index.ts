@@ -1,5 +1,9 @@
+import { incrementEntryCounts } from "../counters";
+
 export const createService = async (body: any, db: any) => {
     try {
+      const [currentEntryNumber] = body.entry.split('/').map(Number);
+      
       const newService = await db
         .insertInto('services')
         .values({
@@ -17,6 +21,10 @@ export const createService = async (body: any, db: any) => {
         })
         .returningAll()
         .executeTakeFirst();
+
+         if (newService) {
+              await incrementEntryCounts('services', currentEntryNumber, db); // Update entry_counters table
+            }
   
       return {
         status: 'success',

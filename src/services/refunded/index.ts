@@ -1,11 +1,16 @@
+import { incrementEntryCounts } from "../counters";
 
 export const createRefunded = async (body: any, db: any) => {
   try {
+
+     const [currentEntryNumber] = body.entry.split('/').map(Number);
+     
     const newRefunded = await db
       .insertInto('refunded')
       .values({
         name: body.name,
         employee:body.employee,
+        entry:body.entry,
         date: body.date,
         passport: body.passport,
         reference: body.reference,
@@ -16,6 +21,10 @@ export const createRefunded = async (body: any, db: any) => {
       })
       .returningAll()
       .executeTakeFirst();
+
+       if (newRefunded) {
+            await incrementEntryCounts('refunded', currentEntryNumber, db); // Update entry_counters table
+          }
 
     return {
       status: 'success',
@@ -64,6 +73,7 @@ export const updateRefunded = async (id: number, body: any, db: any) => {
       .set({
         name: body.name,
         employee:body.employee,
+        entry:body.entry,
         date: body.date,
         passport: body.passport,
         reference: body.reference,
