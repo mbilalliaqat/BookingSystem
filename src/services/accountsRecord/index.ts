@@ -1,10 +1,8 @@
 import { incrementEntryCounts } from "../counters";
 
-
 export const createEntry = async (body: any, db: any) => {
   try {
-
-     const [currentEntryNumber] = body.entry.split('/').map(Number);
+    const [currentEntryNumber] = body.entry.split('/').map(Number);
     // Get the previous balance for this bank
     let previousBalance = 0;
     const latestEntry = await db
@@ -37,8 +35,8 @@ export const createEntry = async (body: any, db: any) => {
       .insertInto('office_accounts')
       .values({
         bank_name: body.bank_name,
-        entry:body.entry,
-        employee_name:body.employee_name,
+        entry: body.entry,
+        employee_name: body.employee_name,
         date: body.date,
         detail: body.detail,
         credit: credit,
@@ -48,9 +46,9 @@ export const createEntry = async (body: any, db: any) => {
       .returningAll()
       .executeTakeFirst();
 
-      if (newEntry) {
-            await incrementEntryCounts('account', currentEntryNumber, db); // Update entry_counters table
-          }
+    if (newEntry) {
+      await incrementEntryCounts('account', currentEntryNumber, db);
+    }
     
     // Format output
     return {
@@ -67,21 +65,20 @@ export const createEntry = async (body: any, db: any) => {
   }
 };
 
-
 export const getEntriesByBank = async (bankName: string, db: any) => {
   try {
     const entries = await db
       .selectFrom('office_accounts')
-      .select(['id','entry','employee_name', 'date', 'detail', 'credit', 'debit', 'balance'])
+      .select(['id', 'entry', 'employee_name', 'date', 'detail', 'credit', 'debit', 'balance'])
       .where('bank_name', '=', bankName)
-      .orderBy('date', 'asc')
+      .orderBy('id', 'asc') // Order by ID to maintain insertion order
       .execute();
     
     // Format output
     return entries.map(entry => ({
       id: entry.id,
       entry: entry.entry,
-      employee_name:entry.employee_name,
+      employee_name: entry.employee_name,
       date: entry.date,
       detail: entry.detail,
       credit: Number(entry.credit),
@@ -93,7 +90,6 @@ export const getEntriesByBank = async (bankName: string, db: any) => {
     throw error;
   }
 };
-
 
 export const getBanks = async (db: any) => {
   try {
@@ -110,13 +106,12 @@ export const getBanks = async (db: any) => {
   }
 };
 
-
 export const updateEntry = async (id: number, body: any, db: any) => {
   try {
     // First get the entry to be updated
     const existingEntry = await db
       .selectFrom('office_accounts')
-      .select(['id','employee_name', 'bank_name', 'credit', 'debit', 'balance'])
+      .select(['id', 'employee_name', 'bank_name', 'credit', 'debit', 'balance'])
       .where('id', '=', id)
       .executeTakeFirst();
 
@@ -124,13 +119,12 @@ export const updateEntry = async (id: number, body: any, db: any) => {
       return null; // Entry not found
     }
     
-    // Get all entries for the bank in chronological order
+    // Get all entries for the bank in ID order (to maintain original order)
     const allEntries = await db
       .selectFrom('office_accounts')
-      .select(['id','employee_name', 'credit', 'debit', 'balance'])
+      .select(['id', 'employee_name', 'credit', 'debit', 'balance'])
       .where('bank_name', '=', existingEntry.bank_name)
-      .orderBy('date', 'asc')
-      .orderBy('id', 'asc')
+      .orderBy('id', 'asc') // Order by ID instead of date
       .execute();
     
     // Calculate new credit and debit values
@@ -152,8 +146,8 @@ export const updateEntry = async (id: number, body: any, db: any) => {
     const updatedEntry = await db
       .updateTable('office_accounts')
       .set({
-        employee_name:body.employee_name,
-        entry:body.entry,
+        employee_name: body.employee_name,
+        entry: body.entry,
         date: body.date,
         detail: body.detail,
         credit: credit,
@@ -174,7 +168,7 @@ export const updateEntry = async (id: number, body: any, db: any) => {
       const entryIndex = allEntries.findIndex(entry => entry.id === id);
       
       if (entryIndex !== -1) {
-        // Update balances for all subsequent entries
+        // Update balances for all subsequent entries (by ID order)
         for (let i = entryIndex; i < allEntries.length; i++) {
           const currentEntry = allEntries[i];
           const newBalance = Number(currentEntry.balance) + balanceDifference;
@@ -198,14 +192,14 @@ export const updateEntry = async (id: number, body: any, db: any) => {
     // Get the updated entry with correct balance
     const finalEntry = await db
       .selectFrom('office_accounts')
-      .select(['id','employee_name', 'date', 'detail', 'credit', 'debit', 'balance'])
+      .select(['id', 'employee_name', 'date', 'detail', 'credit', 'debit', 'balance'])
       .where('id', '=', id)
       .executeTakeFirst();
     
     // Format output
     return {
       id: finalEntry.id,
-      employee_name:finalEntry.employee_name,
+      employee_name: finalEntry.employee_name,
       date: finalEntry.date,
       detail: finalEntry.detail,
       credit: Number(finalEntry.credit),
@@ -217,7 +211,6 @@ export const updateEntry = async (id: number, body: any, db: any) => {
     throw error;
   }
 };
-
 
 export const deleteEntry = async (id: number, db: any) => {
   try {
@@ -235,13 +228,12 @@ export const deleteEntry = async (id: number, db: any) => {
     // Calculate the balance impact of this entry
     const balanceImpact = Number(existingEntry.credit) - Number(existingEntry.debit);
     
-    // Get all entries for the bank in chronological order
+    // Get all entries for the bank in ID order (to maintain original order)
     const allEntries = await db
       .selectFrom('office_accounts')
       .select(['id', 'balance'])
       .where('bank_name', '=', existingEntry.bank_name)
-      .orderBy('date', 'asc')
-      .orderBy('id', 'asc')
+      .orderBy('id', 'asc') // Order by ID instead of date
       .execute();
     
     // Find the index of the entry to be deleted
@@ -254,7 +246,7 @@ export const deleteEntry = async (id: number, db: any) => {
         .where('id', '=', id)
         .execute();
       
-      // Update balances for all subsequent entries
+      // Update balances for all subsequent entries (by ID order)
       for (let i = entryIndex + 1; i < allEntries.length; i++) {
         const currentEntry = allEntries[i];
         const newBalance = Number(currentEntry.balance) - balanceImpact;

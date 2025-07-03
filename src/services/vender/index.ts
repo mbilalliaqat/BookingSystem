@@ -2,8 +2,7 @@ import { incrementEntryCounts } from "../counters";
 
 export const createVendor = async (body: any, db: any) => {
   try {
-
-     const [currentEntryNumber] = body.entry.split('/').map(Number);
+    const [currentEntryNumber] = body.entry.split('/').map(Number);
      
     if (!body.vender_name) {
       return {
@@ -49,20 +48,8 @@ export const createVendor = async (body: any, db: any) => {
       }
     }
 
-    // Get the current balance for this vendor
-    let currentBalance = 0;
-    const latestRecord = await db
-      .selectFrom('vender')
-      .select('remaining_amount')
-      .where('vender_name', '=', body.vender_name)
-      .orderBy('date', 'desc')
-      .orderBy('id', 'desc')
-      .limit(1)
-      .executeTakeFirst();
-
-    if (latestRecord) {
-      currentBalance = Number(latestRecord.remaining_amount) || 0;
-    }
+    // Get the current balance for this vendor by recalculating from all entries
+    const currentBalance = await calculateCurrentBalance(body.vender_name, db);
 
     // Calculate new balance: current + credit - debit
     const newBalance = currentBalance + credit - debit;
@@ -82,9 +69,11 @@ export const createVendor = async (body: any, db: any) => {
       .returningAll()
       .executeTakeFirst();
 
-        if (newVendor) {
-            await incrementEntryCounts('vender', currentEntryNumber, db); // Update entry_counters table
-          }
+    if (newVendor) {
+      await incrementEntryCounts('vender', currentEntryNumber, db);
+      // Recalculate all balances for this vendor to ensure consistency
+      await recalculateVendorBalances(body.vender_name, db);
+    }
 
     return {
       status: 'success',
@@ -157,7 +146,6 @@ export const getVendorByName = async (vender_name: string, db: any) => {
       .selectFrom('vender')
       .selectAll()
       .where('vender_name', '=', vender_name)
-      .orderBy('date', 'asc')
       .orderBy('id', 'asc')
       .execute();
 
@@ -238,10 +226,6 @@ export const updateVendor = async (id: number, body: any, db: any) => {
       }
     }
 
-    // Store the old credit and debit values for balance adjustment
-    const oldCredit = Number(existingVendor.credit) || 0;
-    const oldDebit = Number(existingVendor.debit) || 0;
-
     // Calculate new credit and debit values
     let credit = 0;
     let debit = 0;
@@ -256,8 +240,6 @@ export const updateVendor = async (id: number, body: any, db: any) => {
           credit = creditValue;
         }
       }
-    } else {
-      credit = oldCredit;
     }
 
     // Parse debit value
@@ -270,8 +252,6 @@ export const updateVendor = async (id: number, body: any, db: any) => {
           debit = debitValue;
         }
       }
-    } else {
-      debit = oldDebit;
     }
 
     // Prevent both credit and debit in same transaction
@@ -292,12 +272,7 @@ export const updateVendor = async (id: number, body: any, db: any) => {
       }
     }
 
-    // Calculate the difference in balance change
-    const oldBalance = oldCredit - oldDebit;
-    const newBalance = credit - debit;
-    const balanceDifference = newBalance - oldBalance;
-
-    // Update the current entry (without changing remaining_amount yet)
+    // Update the current entry
     const updatedVendor = await db
       .updateTable('vender')
       .set({
@@ -321,8 +296,8 @@ export const updateVendor = async (id: number, body: any, db: any) => {
       };
     }
 
-    // Update remaining amounts for this entry and all subsequent entries
-    await updateSubsequentBalances(updatedVendor.vender_name, id, balanceDifference, db);
+    // Recalculate all balances for this vendor to ensure consistency
+    await recalculateVendorBalances(updatedVendor.vender_name, db);
 
     // Get the updated entry with recalculated balance
     const finalVendor = await db
@@ -377,9 +352,6 @@ export const deleteVendor = async (id: number, db: any) => {
     }
 
     const vendorName = existingVendor.vender_name;
-    const deletedCredit = Number(existingVendor.credit) || 0;
-    const deletedDebit = Number(existingVendor.debit) || 0;
-    const balanceChange = deletedCredit - deletedDebit;
 
     // Delete the entry
     const deletedVendor = await db
@@ -396,8 +368,8 @@ export const deleteVendor = async (id: number, db: any) => {
       };
     }
 
-    // Update subsequent entries by subtracting the deleted entry's balance impact
-    await updateSubsequentBalancesAfterDelete(vendorName, id, balanceChange, db);
+    // Recalculate all balances for this vendor to ensure consistency
+    await recalculateVendorBalances(vendorName, db);
 
     return {
       status: 'success',
@@ -427,80 +399,47 @@ export const deleteVendor = async (id: number, db: any) => {
   }
 };
 
-// Helper function to update balances for the updated entry and all subsequent entries
-const updateSubsequentBalances = async (vendorName: string, updatedId: number, balanceDifference: number, db: any) => {
+// Helper function to calculate current balance for a vendor
+const calculateCurrentBalance = async (vendorName: string, db: any) => {
   try {
-    // Get all entries for this vendor that are equal to or after the updated entry
-    // Order by date and id to maintain chronological order
-    const entriesToUpdate = await db
+    // Get all entries for this vendor in ID order (creation order)
+    const allEntries = await db
       .selectFrom('vender')
-      .select(['id', 'remaining_amount', 'date'])
+      .select(['credit', 'debit'])
       .where('vender_name', '=', vendorName)
-      .where('id', '>=', updatedId)
-      .orderBy('date', 'asc')
       .orderBy('id', 'asc')
       .execute();
 
-    // Update each entry's remaining_amount
-    for (const entry of entriesToUpdate) {
-      const newRemainingAmount = Number(entry.remaining_amount) + balanceDifference;
-      
-      await db
-        .updateTable('vender')
-        .set({ remaining_amount: newRemainingAmount })
-        .where('id', '=', entry.id)
-        .execute();
+    let balance = 0;
+    
+    // Calculate running balance: add credit, subtract debit
+    for (const entry of allEntries) {
+      const entryCredit = Number(entry.credit) || 0;
+      const entryDebit = Number(entry.debit) || 0;
+      balance = balance + entryCredit - entryDebit;
     }
+
+    return balance;
   } catch (error) {
-    console.error('Error updating subsequent balances:', error);
-    throw error;
+    console.error('Error calculating current balance:', error);
+    return 0;
   }
 };
 
-// Helper function to update balances after deletion
-const updateSubsequentBalancesAfterDelete = async (vendorName: string, deletedId: number, balanceChange: number, db: any) => {
-  try {
-    // Get all entries for this vendor that come after the deleted entry
-    const entriesToUpdate = await db
-      .selectFrom('vender')
-      .select(['id', 'remaining_amount', 'date'])
-      .where('vender_name', '=', vendorName)
-      .where('id', '>', deletedId)
-      .orderBy('date', 'asc')
-      .orderBy('id', 'asc')
-      .execute();
-
-    // Update each subsequent entry's remaining_amount by subtracting the deleted entry's impact
-    for (const entry of entriesToUpdate) {
-      const newRemainingAmount = Number(entry.remaining_amount) - balanceChange;
-      
-      await db
-        .updateTable('vender')
-        .set({ remaining_amount: newRemainingAmount })
-        .where('id', '=', entry.id)
-        .execute();
-    }
-  } catch (error) {
-    console.error('Error updating balances after deletion:', error);
-    throw error;
-  }
-};
-
-// This function is kept for backward compatibility but not used in update/delete
+// Helper function to recalculate all balances for a vendor
 const recalculateVendorBalances = async (vendorName: string, db: any) => {
   try {
-    // Get all entries for this vendor in chronological order
+    // Get all entries for this vendor in ID order (creation order)
     const allEntries = await db
       .selectFrom('vender')
       .select(['id', 'credit', 'debit', 'date'])
       .where('vender_name', '=', vendorName)
-      .orderBy('date', 'asc')
       .orderBy('id', 'asc')
       .execute();
 
     let runningBalance = 0;
     
-    // Process each entry in chronological order
+    // Process each entry in ID order (creation order)
     for (const entry of allEntries) {
       const entryCredit = Number(entry.credit) || 0;
       const entryDebit = Number(entry.debit) || 0;
@@ -520,3 +459,9 @@ const recalculateVendorBalances = async (vendorName: string, db: any) => {
     throw error;
   }
 };
+
+// These helper functions are removed as they're replaced by the recalculateVendorBalances approach
+// which is more reliable and ensures consistency
+
+// Removed: updateSubsequentBalances
+// Removed: updateSubsequentBalancesAfterDelete
