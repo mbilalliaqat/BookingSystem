@@ -41,7 +41,8 @@ export const createEntry = async (body: any, db: any) => {
         detail: body.detail,
         credit: credit,
         debit: debit,
-        balance: newBalance
+        balance: newBalance,
+        vendor_name: body.vendor_name,
       })
       .returningAll()
       .executeTakeFirst();
@@ -69,7 +70,7 @@ export const getEntriesByBank = async (bankName: string, db: any) => {
   try {
     const entries = await db
       .selectFrom('office_accounts')
-      .select(['id', 'entry', 'employee_name', 'date', 'detail', 'credit', 'debit', 'balance'])
+      .select(['id', 'entry', 'employee_name', 'date', 'detail', 'credit', 'debit','vendor_name' ,'balance'])
       .where('bank_name', '=', bankName)
       .orderBy('id', 'asc') // Order by ID to maintain insertion order
       .execute();
@@ -83,7 +84,8 @@ export const getEntriesByBank = async (bankName: string, db: any) => {
       detail: entry.detail,
       credit: Number(entry.credit),
       debit: Number(entry.debit),
-      balance: Number(entry.balance)
+      balance: Number(entry.balance),
+      vendor_name: entry.vendor_name
     }));
   } catch (error) {
     console.error('Error getting entries:', error);
@@ -152,7 +154,7 @@ export const updateEntry = async (id: number, body: any, db: any) => {
         detail: body.detail,
         credit: credit,
         debit: debit,
-        // Don't update balance here, we'll do it separately for all affected entries
+         vendor_name: body.vendor_name
       })
       .where('id', '=', id)
       .returningAll()
@@ -192,7 +194,7 @@ export const updateEntry = async (id: number, body: any, db: any) => {
     // Get the updated entry with correct balance
     const finalEntry = await db
       .selectFrom('office_accounts')
-      .select(['id', 'employee_name', 'date', 'detail', 'credit', 'debit', 'balance'])
+      .select(['id', 'employee_name', 'date', 'detail', 'credit', 'debit', 'balance','vendor_name'])
       .where('id', '=', id)
       .executeTakeFirst();
     
@@ -204,7 +206,8 @@ export const updateEntry = async (id: number, body: any, db: any) => {
       detail: finalEntry.detail,
       credit: Number(finalEntry.credit),
       debit: Number(finalEntry.debit),
-      balance: Number(finalEntry.balance)
+      balance: Number(finalEntry.balance),
+            vendor_name: finalEntry.vendor_name, 
     };
   } catch (error) {
     console.error('Error updating entry:', error);

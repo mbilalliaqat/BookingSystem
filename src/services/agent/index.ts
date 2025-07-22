@@ -12,9 +12,10 @@ export const createAgent = async (body: any, db: any) => {
       };
     }
 
-    // Parse and validate credit/debit values
+  
     let credit = 0;
     let debit = 0;
+    let receivableAmount =0;
 
     if (body.credit !== undefined && body.credit !== null && body.credit !== '') {
       const creditValue = Number(body.credit);
@@ -22,11 +23,36 @@ export const createAgent = async (body: any, db: any) => {
         credit = creditValue;
       }
     }
+
+     if (body.receivable_amount !== undefined && body.receivable_amount !== null && body.receivable_amount !== '') {
+      const receivableValue = Number(body.receivable_amount);
+      if (!isNaN(receivableValue) && receivableValue >= 0) {
+        receivableAmount = receivableValue;
+      }
+    }
     
     if (body.debit !== undefined && body.debit !== null && body.debit !== '') {
       const debitValue = Number(body.debit);
       if (!isNaN(debitValue) && debitValue > 0) {
         debit = debitValue;
+      }
+    }
+
+    // Parse and validate paid_cash/paid_bank values
+    let paidCash = 0;
+    let paidBank = 0;
+
+    if (body.paid_cash !== undefined && body.paid_cash !== null && body.paid_cash !== '') {
+      const paidCashValue = Number(body.paid_cash);
+      if (!isNaN(paidCashValue) && paidCashValue > 0) {
+        paidCash = paidCashValue;
+      }
+    }
+
+    if (body.paid_bank !== undefined && body.paid_bank !== null && body.paid_bank !== '') {
+      const paidBankValue = Number(body.paid_bank);
+      if (!isNaN(paidBankValue) && paidBankValue > 0) {
+        paidBank = paidBankValue;
       }
     }
 
@@ -65,6 +91,9 @@ export const createAgent = async (body: any, db: any) => {
         detail: body.detail || '',
         credit: credit > 0 ? credit : null,
         debit: debit > 0 ? debit : null,
+        paid_cash: paidCash > 0 ? paidCash : null,
+        paid_bank: paidBank > 0 ? paidBank : null,
+         receivable_amount: receivableAmount > 0 ? receivableAmount : null,
         balance: newBalance
       })
       .returningAll()
@@ -76,7 +105,7 @@ export const createAgent = async (body: any, db: any) => {
       await recalculateAgentBalances(body.agent_name, db);
     }
 
-    console.log(`Created agent entry for agent: ${body.agent_name}, Credit: ${credit}, Debit: ${debit}, Previous Balance: ${currentBalance}, New Balance: ${newBalance}`);
+    console.log(`Created agent entry for agent: ${body.agent_name}, Credit: ${credit}, Debit: ${debit}, Paid Cash: ${paidCash}, Paid Bank: ${paidBank}, Previous Balance: ${currentBalance}, New Balance: ${newBalance}`);
 
     return {
       status: 'success',
@@ -91,6 +120,9 @@ export const createAgent = async (body: any, db: any) => {
         detail: newAgentRecord.detail,
         credit: Number(newAgentRecord.credit) || 0,
         debit: Number(newAgentRecord.debit) || 0,
+        paid_cash: Number(newAgentRecord.paid_cash) || 0,
+        paid_bank: Number(newAgentRecord.paid_bank) || 0,
+         receivable_amount: Number(newAgentRecord.receivable_amount) || 0,
         balance: Number(newAgentRecord.balance)
       }
     };
@@ -123,6 +155,9 @@ export const getAgent = async (db: any) => {
       detail: agent.detail,
       credit: Number(agent.credit) || 0,
       debit: Number(agent.debit) || 0,
+      paid_cash: Number(agent.paid_cash) || 0,
+      paid_bank: Number(agent.paid_bank) || 0,
+       receivable_amount: Number(agent.receivable_amount) || 0,
       balance: Number(agent.balance)
     }));
 
@@ -162,6 +197,10 @@ export const getAgentByName = async (agent_name: string, db: any) => {
       detail: agent.detail,
       credit: Number(agent.credit) || 0,
       debit: Number(agent.debit) || 0,
+      paid_cash: Number(agent.paid_cash) || 0,
+      paid_bank: Number(agent.paid_bank) || 0,
+      receivable_amount: Number(agent.receivable_amount) || 0,
+
       balance: Number(agent.balance)
     }));
 
@@ -201,6 +240,8 @@ export const updateAgent = async (id: number, body: any, db: any) => {
     // Calculate new credit and debit values
     let credit = 0;
     let debit = 0;
+    
+    
 
     // Parse credit value
     if (body.credit !== undefined) {
@@ -222,6 +263,44 @@ export const updateAgent = async (id: number, body: any, db: any) => {
         const debitValue = Number(body.debit);
         if (!isNaN(debitValue) && debitValue > 0) {
           debit = debitValue;
+        }
+      }
+    }
+
+    // Parse paid_cash and paid_bank values
+    let paidCash = 0;
+    let paidBank = 0;
+    let receivableAmount = 0;
+
+    if (body.paid_cash !== undefined) {
+      if (body.paid_cash === null || body.paid_cash === '' || body.paid_cash === '0') {
+        paidCash = 0;
+      } else {
+        const paidCashValue = Number(body.paid_cash);
+        if (!isNaN(paidCashValue) && paidCashValue > 0) {
+          paidCash = paidCashValue;
+        }
+      }
+    }
+
+    if (body.receivable_amount !== undefined) {
+      if (body.receivable_amount === null || body.receivable_amount === '' || body.receivable_amount === '0') {
+        receivableAmount = 0;
+      } else {
+        const receivableValue = Number(body.receivable_amount);
+        if (!isNaN(receivableValue) && receivableValue >= 0) {
+          receivableAmount = receivableValue;
+        }
+      }
+    }
+
+    if (body.paid_bank !== undefined) {
+      if (body.paid_bank === null || body.paid_bank === '' || body.paid_bank === '0') {
+        paidBank = 0;
+      } else {
+        const paidBankValue = Number(body.paid_bank);
+        if (!isNaN(paidBankValue) && paidBankValue > 0) {
+          paidBank = paidBankValue;
         }
       }
     }
@@ -255,6 +334,11 @@ export const updateAgent = async (id: number, body: any, db: any) => {
         detail: body.detail !== undefined ? body.detail : existingAgent.detail,
         credit: credit > 0 ? credit : null,
         debit: debit > 0 ? debit : null,
+        paid_cash: paidCash > 0 ? paidCash : null,
+        paid_bank: paidBank > 0 ? paidBank : null,
+        receivable_amount: receivableAmount > 0 ? receivableAmount : null,
+
+        
       })
       .where('id', '=', id)
       .returningAll()
@@ -278,7 +362,7 @@ export const updateAgent = async (id: number, body: any, db: any) => {
       .where('id', '=', id)
       .executeTakeFirst();
 
-    console.log(`Updated agent entry ID ${id}: ${updatedAgent.agent_name}, Credit: ${credit}, Debit: ${debit}, New Balance: ${finalAgent.balance}`);
+    console.log(`Updated agent entry ID ${id}: ${updatedAgent.agent_name}, Credit: ${credit}, Debit: ${debit}, Paid Cash: ${paidCash}, Paid Bank: ${paidBank}, New Balance: ${finalAgent.balance}`);
 
     return {
       status: 'success',
@@ -293,7 +377,11 @@ export const updateAgent = async (id: number, body: any, db: any) => {
         detail: finalAgent.detail,
         credit: Number(finalAgent.credit) || 0,
         debit: Number(finalAgent.debit) || 0,
-        balance: Number(finalAgent.balance)
+        paid_cash: Number(finalAgent.paid_cash) || 0,
+        paid_bank: Number(finalAgent.paid_bank) || 0,
+        balance: Number(finalAgent.balance),
+        receivable_amount: Number(finalAgent.receivable_amount) || 0,
+
       }
     };
 
@@ -360,6 +448,10 @@ export const deleteAgent = async (id: number, db: any) => {
         detail: deletedAgent.detail,
         credit: Number(deletedAgent.credit) || 0,
         debit: Number(deletedAgent.debit) || 0,
+        paid_cash: Number(deletedAgent.paid_cash) || 0,
+        paid_bank: Number(deletedAgent.paid_bank) || 0,
+        receivable_amount: Number(deletedAgent.receivable_amount) || 0,
+
         balance: Number(deletedAgent.balance)
       }
     };
@@ -463,6 +555,108 @@ const recalculateAgentBalances = async (agentName: string, db: any) => {
   } catch (error) {
     console.error('Error recalculating agent balances:', error);
     throw error;
+  }
+};
+
+// New function to get agent payment summary
+export const getAgentPaymentSummary = async (agent_name: string, db: any) => {
+  try {
+    const summary = await db
+      .selectFrom('agent')
+      .select([
+        db.fn.sum('credit').as('total_credit'),
+        db.fn.sum('debit').as('total_debit'),
+        db.fn.sum('paid_cash').as('total_paid_cash'),
+        db.fn.sum('paid_bank').as('total_paid_bank')
+      ])
+      .where('agent_name', '=', agent_name)
+      .executeTakeFirst();
+
+    const totalCredit = Number(summary.total_credit) || 0;
+    const totalDebit = Number(summary.total_debit) || 0;
+    const totalPaidCash = Number(summary.total_paid_cash) || 0;
+    const totalPaidBank = Number(summary.total_paid_bank) || 0;
+    const totalPaid = totalPaidCash + totalPaidBank;
+    const currentBalance = totalCredit - totalDebit;
+    const remainingBalance = currentBalance - totalPaid;
+
+    return {
+      status: 'success',
+      code: 200,
+      summary: {
+        agent_name,
+        total_credit: totalCredit,
+        total_debit: totalDebit,
+        current_balance: currentBalance,
+        total_paid_cash: totalPaidCash,
+        total_paid_bank: totalPaidBank,
+        total_paid: totalPaid,
+        remaining_balance: remainingBalance
+      }
+    };
+  } catch (error) {
+    console.error('Error getting agent payment summary:', error);
+    return {
+      status: 'error',
+      code: 500,
+      message: 'Failed to fetch agent payment summary',
+      errors: error.message
+    };
+  }
+};
+
+// New function to get all agents payment summary
+export const getAllAgentsPaymentSummary = async (db: any) => {
+  try {
+    const summaries = await db
+      .selectFrom('agent')
+      .select([
+        'agent_name',
+        db.fn.sum('credit').as('total_credit'),
+        db.fn.sum('debit').as('total_debit'),
+        db.fn.sum('paid_cash').as('total_paid_cash'),
+        db.fn.sum('paid_bank').as('total_paid_bank')
+      ])
+      .where('agent_name', 'is not', null)
+      .where('agent_name', '!=', '')
+      .groupBy('agent_name')
+      .orderBy('agent_name', 'asc')
+      .execute();
+
+    const formattedSummaries = summaries.map(summary => {
+      const totalCredit = Number(summary.total_credit) || 0;
+      const totalDebit = Number(summary.total_debit) || 0;
+      const totalPaidCash = Number(summary.total_paid_cash) || 0;
+      const totalPaidBank = Number(summary.total_paid_bank) || 0;
+      const totalPaid = totalPaidCash + totalPaidBank;
+      const currentBalance = totalCredit - totalDebit;
+      const remainingBalance = currentBalance - totalPaid;
+
+      return {
+        agent_name: summary.agent_name,
+        total_credit: totalCredit,
+        total_debit: totalDebit,
+        current_balance: currentBalance,
+        total_paid_cash: totalPaidCash,
+        total_paid_bank: totalPaidBank,
+        total_paid: totalPaid,
+        remaining_balance: remainingBalance
+      };
+    });
+
+    return {
+      status: 'success',
+      code: 200,
+      summaries: formattedSummaries
+    };
+  } catch (error) {
+    console.error('Error getting all agents payment summary:', error);
+    return {
+      status: 'error',
+      code: 500,
+      message: 'Failed to fetch agents payment summary',
+      errors: error.message
+    };
   }
 };
 
