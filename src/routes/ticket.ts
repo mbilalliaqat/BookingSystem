@@ -1,5 +1,10 @@
 import app from '../app';
-import { createTicket, updateTicket, deleteTicket  } from '../services/tickets';
+import { createTicket, updateTicket, deleteTicket,
+  //  getTickets, 
+  // getTicketById,
+  createPayment,         // <--- Add this import
+  getPaymentsByTicketId,
+ } from '../services/tickets';
 
 
 app.post('/ticket', async (c) => {
@@ -121,3 +126,35 @@ app.post('/ticket', async (c) => {
       );
     }
   });
+
+  app.post('/ticket/:id/payments', async (c) => {
+  try {
+    const ticketId = parseInt(c.req.param('id'));
+    if (isNaN(ticketId)) {
+      return c.json({ status: 'error', code: 400, message: 'Invalid Ticket ID' }, 400);
+    }
+    const body = await c.req.json();
+    // Add the ticket_id from the URL parameter to the body for the service function
+    const payload = { ...body, ticket_id: ticketId };
+    const result = await createPayment(payload, globalThis.env.DB);
+    return c.json(result, result.code);
+  } catch (error) {
+    console.error('Error creating payment:', error);
+    return c.json({ status: 'error', message: 'Failed to create payment' }, 500);
+  }
+});
+
+// Route to get payment history for a specific ticket
+app.get('/ticket/:id/payments', async (c) => {
+  try {
+    const ticketId = parseInt(c.req.param('id'));
+    if (isNaN(ticketId)) {
+      return c.json({ status: 'error', code: 400, message: 'Invalid Ticket ID' }, 400);
+    }
+    const result = await getPaymentsByTicketId(ticketId, globalThis.env.DB);
+    return c.json(result, result.code);
+  } catch (error) {
+    console.error('Error fetching payment history:', error);
+    return c.json({ status: 'error', message: 'Failed to fetch payment history' }, 500);
+  }
+});
