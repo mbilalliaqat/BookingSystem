@@ -158,10 +158,10 @@ export const createPayment = async (body: any, db: any) => {
   try {
     const now = new Date();
 
-    // First, fetch the current ticket to get its remaining_amount
+    // First, fetch the current ticket to get its remaining_amount, paid_cash, and paid_in_bank
     const currentTicket = await db
       .selectFrom('ticket')
-      .select('remaining_amount')
+      .select(['remaining_amount', 'paid_cash', 'paid_in_bank']) // Select existing paid amounts
       .where('id', '=', body.ticket_id)
       .executeTakeFirst();
 
@@ -173,10 +173,16 @@ export const createPayment = async (body: any, db: any) => {
       };
     }
 
-   
-    const amountPaid = parseFloat(body.payment_amount) || 0;
+    const amountPaidCash = parseFloat(body.payment_amount) || 0; // This is the cash amount from frontend
+    const amountPaidBank = parseFloat(body.paid_bank) || 0; // This is the bank amount from frontend
+
     const currentRemaining = parseFloat(currentTicket.remaining_amount) || 0;
-    const newRemainingAmountForTicket = currentRemaining - amountPaid;
+    const currentPaidCash = parseFloat(currentTicket.paid_cash) || 0;
+    const currentPaidInBank = parseFloat(currentTicket.paid_in_bank) || 0;
+
+    const newRemainingAmountForTicket = currentRemaining - (amountPaidCash + amountPaidBank); // Deduct total paid
+    const newPaidCash = currentPaidCash + amountPaidCash; // Increment paid cash
+    const newPaidInBank = currentPaidInBank + amountPaidBank; // Increment paid in bank
 
     // Insert new payment record into ticket_payments table
     const newPayment = await db
@@ -184,22 +190,23 @@ export const createPayment = async (body: any, db: any) => {
       .values({
         ticket_id: body.ticket_id,
         payment_date: formatDateForDB(body.payment_date) || now.toISOString().split('T')[0],
-        // Store the amount paid in this transaction in 'payed_cash' column (as per your schema)
-        payed_cash: amountPaid.toString(), // Convert to string as per VARCHAR(100) schema
+        payed_cash: amountPaidCash.toString(), // Store cash amount in this payment
+        paid_bank: amountPaidBank.toString(), // Store bank amount in this payment
         bank_title: body.bank_title || null,
         recorded_by: body.recorded_by,
         created_at: now,
-        // Store the remaining amount *after this specific payment* in the payment history record
-        remaining_amount: newRemainingAmountForTicket,
+        remaining_amount: newRemainingAmountForTicket, // Store the remaining amount after this payment
       })
       .returningAll()
       .executeTakeFirst();
 
-    // Update the remaining_amount in the main 'ticket' table
+    // Update the main 'ticket' table with new remaining, paid_cash, and paid_in_bank amounts
     const updatedTicket = await db
       .updateTable('ticket')
       .set({
         remaining_amount: newRemainingAmountForTicket,
+        paid_cash: newPaidCash, // Update paid_cash in main ticket table
+        paid_in_bank: newPaidInBank, // Update paid_in_bank in main ticket table
       })
       .where('id', '=', body.ticket_id)
       .returningAll()
@@ -208,7 +215,7 @@ export const createPayment = async (body: any, db: any) => {
     return {
       status: 'success',
       code: 201,
-      message: 'Payment recorded and ticket remaining amount updated successfully',
+      message: 'Payment recorded and ticket amounts updated successfully',
       payment: newPayment,
       ticket: updatedTicket, // Return updated ticket details as well
     };
