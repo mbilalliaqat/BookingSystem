@@ -31,6 +31,8 @@ export const createTicket = async (body: any, db: any) => {
         receivable_amount: body.receivable_amount,
         paid_cash: body.paid_cash || 0,
         bank_title: body.bank_title,
+        initial_paid_cash: body.paid_cash || 0,
+        initial_paid_in_bank: body.paid_in_bank || 0,
         paid_in_bank: body.paid_in_bank || 0,
         payable_to_vendor: body.payable_to_vendor,
         vendor_name: body.vendor_name || null,
@@ -66,6 +68,11 @@ export const createTicket = async (body: any, db: any) => {
 export const updateTicket = async (id: number, body: any, db: any) => {
   try {
     const now = new Date();
+    const currentTicket = await db
+      .selectFrom('ticket')
+      .select(['initial_paid_cash', 'initial_paid_in_bank'])
+      .where('id', '=', id)
+      .executeTakeFirst();
     const updatedTicket = await db
       .updateTable('ticket')
       .set({
@@ -82,6 +89,8 @@ export const updateTicket = async (id: number, body: any, db: any) => {
         infants: body.infants,
         passport_detail: body.passport_detail,
         receivable_amount: body.receivable_amount,
+        initial_paid_cash: currentTicket?.initial_paid_cash || body.paid_cash || 0,
+        initial_paid_in_bank: currentTicket?.initial_paid_in_bank || body.paid_in_bank || 0,
         paid_cash: body.paid_cash || 0,
         bank_title: body.bank_title,
         paid_in_bank: body.paid_in_bank || 0,
@@ -158,10 +167,10 @@ export const createPayment = async (body: any, db: any) => {
   try {
     const now = new Date();
 
-    // First, fetch the current ticket to get its remaining_amount, paid_cash, and paid_in_bank
+    // Get current ticket data
     const currentTicket = await db
       .selectFrom('ticket')
-      .select(['remaining_amount', 'paid_cash', 'paid_in_bank']) // Select existing paid amounts
+      .select(['remaining_amount', 'paid_cash', 'paid_in_bank', 'initial_paid_cash', 'initial_paid_in_bank'])
       .where('id', '=', body.ticket_id)
       .executeTakeFirst();
 
@@ -173,40 +182,41 @@ export const createPayment = async (body: any, db: any) => {
       };
     }
 
-    const amountPaidCash = parseFloat(body.payment_amount) || 0; // This is the cash amount from frontend
-    const amountPaidBank = parseFloat(body.paid_bank) || 0; // This is the bank amount from frontend
+    const amountPaidCash = parseFloat(body.payment_amount) || 0;
+    const amountPaidBank = parseFloat(body.paid_bank) || 0;
 
     const currentRemaining = parseFloat(currentTicket.remaining_amount) || 0;
     const currentPaidCash = parseFloat(currentTicket.paid_cash) || 0;
     const currentPaidInBank = parseFloat(currentTicket.paid_in_bank) || 0;
 
-    const newRemainingAmountForTicket = currentRemaining - (amountPaidCash + amountPaidBank); // Deduct total paid
-    const newPaidCash = currentPaidCash + amountPaidCash; // Increment paid cash
-    const newPaidInBank = currentPaidInBank + amountPaidBank; // Increment paid in bank
+    const newRemainingAmountForTicket = currentRemaining - (amountPaidCash + amountPaidBank);
+    const newPaidCash = currentPaidCash + amountPaidCash;
+    const newPaidInBank = currentPaidInBank + amountPaidBank;
 
-    // Insert new payment record into ticket_payments table
+    // Insert payment record
     const newPayment = await db
       .insertInto('ticket_payments')
       .values({
         ticket_id: body.ticket_id,
         payment_date: formatDateForDB(body.payment_date) || now.toISOString().split('T')[0],
-        payed_cash: amountPaidCash.toString(), // Store cash amount in this payment
-        paid_bank: amountPaidBank.toString(), // Store bank amount in this payment
+        payed_cash: amountPaidCash.toString(),
+        paid_bank: amountPaidBank.toString(),
         bank_title: body.bank_title || null,
         recorded_by: body.recorded_by,
         created_at: now,
-        remaining_amount: newRemainingAmountForTicket, // Store the remaining amount after this payment
+        remaining_amount: newRemainingAmountForTicket,
       })
       .returningAll()
       .executeTakeFirst();
 
-    // Update the main 'ticket' table with new remaining, paid_cash, and paid_in_bank amounts
+    // Update ticket - KEEP initial values unchanged
     const updatedTicket = await db
       .updateTable('ticket')
       .set({
         remaining_amount: newRemainingAmountForTicket,
-        paid_cash: newPaidCash, // Update paid_cash in main ticket table
-        paid_in_bank: newPaidInBank, // Update paid_in_bank in main ticket table
+        paid_cash: newPaidCash,
+        paid_in_bank: newPaidInBank,
+        // DON'T update initial values here
       })
       .where('id', '=', body.ticket_id)
       .returningAll()
@@ -217,7 +227,7 @@ export const createPayment = async (body: any, db: any) => {
       code: 201,
       message: 'Payment recorded and ticket amounts updated successfully',
       payment: newPayment,
-      ticket: updatedTicket, // Return updated ticket details as well
+      ticket: updatedTicket,
     };
   } catch (error) {
     console.error('Error in createPayment service:', error);

@@ -107,7 +107,7 @@ export const getAllCustomers = async (db: any) => {
   try {
     const customers = await db
       .selectFrom('customers')
-      .select('name')
+      .select(['id', 'name', 'mobile_number'])
       .orderBy('created_at', 'desc')
       .execute();
 
