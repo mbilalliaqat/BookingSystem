@@ -325,6 +325,7 @@ app.post('/umrah', async (c) => {
         vendorName: body.vendorName,
         profit: body.profit,
         remainingAmount: body.remainingAmount,
+        booking_date: body.booking_date,
         createdAt: now,
         updatedAt: now
       })
@@ -420,6 +421,7 @@ app.put('/umrah/:id',async (c)=>{
       vendorName: body.vendorName,
       profit: body.profit,
       remainingAmount: body.remainingAmount,
+      booking_date: body.booking_date,
       createdAt: now,
       updatedAt: now
     })

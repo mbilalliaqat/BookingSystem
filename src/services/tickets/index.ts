@@ -39,6 +39,7 @@ export const createTicket = async (body: any, db: any) => {
         agent_name: body.agent_name || null,
         profit: body.profit || 0,
         remaining_amount: body.remaining_amount || 0,
+        booking_date: body.booking_date,
         created_at: now,
       })
       .returningAll()
@@ -99,6 +100,7 @@ export const updateTicket = async (id: number, body: any, db: any) => {
         agent_name: body.agent_name || null,
         profit: body.profit || 0,
         remaining_amount: body.remaining_amount || 0,
+        booking_date: body.booking_date,
         created_at: now,
       })
       .where('id', '=', id)
