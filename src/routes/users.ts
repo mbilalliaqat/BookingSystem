@@ -326,6 +326,8 @@ app.post('/umrah', async (c) => {
         profit: body.profit,
         remainingAmount: body.remainingAmount,
         booking_date: body.booking_date,
+        initial_paid_cash: body.paidCash || 0,
+        initial_paid_in_bank: body.paidInBank || 0,
         createdAt: now,
         updatedAt: now
       })
@@ -389,46 +391,56 @@ app.get('/umrah', async (c) => {
   }
 });
 
-app.put('/umrah/:id',async (c)=>{
-  try{
+app.put('/umrah/:id', async (c) => {
+  try {
     const body = await c.req.json();
-    const id=Number (c.req.param('id'));
-    const now =new Date();
+    const id = Number(c.req.param('id'));
+    const now = new Date();
 
     let db = globalThis.env.DB;
 
+    // Get current umrah data to preserve initial values
+    const currentUmrah = await db
+      .selectFrom('Umrah')
+      .select(['initial_paid_cash', 'initial_paid_in_bank'])
+      .where('id', '=', id)
+      .executeTakeFirst();
+
     const updatedUmrah = await db
-    .updateTable('Umrah')
-    .set({
-      userName: body.userName,
-      entry: body.entry,
-      customerAdd: body.customerAdd,
-      reference: body.reference,
-      packageDetail: body.packageDetail || null,
-      depart_date: new Date(body.depart_date),
-      return_date: new Date(body.return_date),
-      sector: body.sector,
-      airline: body.airline,
-       adults: body.adults, // Update adults field
-      children: body.children, // Update children field
-      infants: body.infants,
-      passportDetail: body.passportDetail,
-      receivableAmount: body.receivableAmount,
-      paidCash: body.paidCash,
-      bank_title:body.bank_title,
-      paidInBank: body.paidInBank,
-      payableToVendor: body.payableToVendor,
-      vendorName: body.vendorName,
-      profit: body.profit,
-      remainingAmount: body.remainingAmount,
-      booking_date: body.booking_date,
-      createdAt: now,
-      updatedAt: now
-    })
-    .where('id','=',id)
-    .returningAll()
-    .executeTakeFirst();
-    if(!updatedUmrah){
+      .updateTable('Umrah')
+      .set({
+        userName: body.userName,
+        entry: body.entry,
+        customerAdd: body.customerAdd,
+        reference: body.reference,
+        packageDetail: body.packageDetail || null,
+        depart_date: new Date(body.depart_date),
+        return_date: new Date(body.return_date),
+        sector: body.sector,
+        airline: body.airline,
+        adults: body.adults,
+        children: body.children,
+        infants: body.infants,
+        passportDetail: body.passportDetail,
+        receivableAmount: body.receivableAmount,
+        paidCash: body.paidCash || 0,
+        bank_title: body.bank_title,
+        paidInBank: body.paidInBank || 0,
+        payableToVendor: body.payableToVendor,
+        vendorName: body.vendorName,
+        profit: body.profit || 0,
+        remainingAmount: body.remainingAmount || 0,
+        booking_date: body.booking_date,
+        // Preserve initial values or set them if they don't exist
+        initial_paid_cash: currentUmrah?.initial_paid_cash || body.paidCash || 0,
+        initial_paid_in_bank: currentUmrah?.initial_paid_in_bank || body.paidInBank || 0,
+        updatedAt: now
+      })
+      .where('id', '=', id)
+      .returningAll()
+      .executeTakeFirst();
+
+    if (!updatedUmrah) {
       return c.json(
         {
           status: 'error',
@@ -437,6 +449,7 @@ app.put('/umrah/:id',async (c)=>{
         404
       );
     }
+
     return c.json(
       {
         status: 'success',
@@ -444,9 +457,8 @@ app.put('/umrah/:id',async (c)=>{
         umrah: updatedUmrah
       },
       200
-    )
-  }
-  catch(error){
+    );
+  } catch (error) {
     console.error('Error updating umrah:', error);
     
     return c.json(

@@ -15,3 +15,9 @@ import './refundCustomer'
 import './entryCount'
 import './Customers'
 import './payments'
+import './umrahPayment'
+import './visaPayment'
+import './GamcaPayment'
+
+
+
