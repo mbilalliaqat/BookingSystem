@@ -132,29 +132,47 @@ export const updateTicket = async (id: number, body: any, db: any) => {
   }
 };
 
+// Fixed deleteTicket function in tickets/index.ts
 export const deleteTicket = async (id: number, db: any) => {
   try {
-    const deleteTicket = await db
-      .deleteFrom('ticket')  // Fixed from deleteForm to deleteFrom
+    // First, check if the ticket exists
+    const ticketRecord = await db
+      .selectFrom('ticket')
+      .selectAll()
       .where('id', '=', id)
-      .returningAll()
       .executeTakeFirst();
 
-    if (!deleteTicket) {
+    if (!ticketRecord) {
       return {
         status: 'error',
         code: 404,
         message: 'Ticket not found'
       };
     }
+
+    // Delete all related payment records first to avoid foreign key constraint violation
+    const deletedPayments = await db
+      .deleteFrom('ticket_payments')
+      .where('ticket_id', '=', id)
+      .execute();
+
+    console.log(`Deleted ${deletedPayments.length || 0} related payment records for ticket ID: ${id}`);
+
+    // Now delete the main ticket record
+    const deletedTicket = await db
+      .deleteFrom('ticket')
+      .where('id', '=', id)
+      .returningAll()
+      .executeTakeFirst();
+
     return {
       status: 'success',
       code: 200,
-      message: 'Ticket deleted successfully',
-      ticket: deleteTicket,
+      message: `Ticket deleted successfully${deletedPayments.length > 0 ? ` along with ${deletedPayments.length} related payment records` : ''}`,
+      ticket: deletedTicket,
     };
   } catch (error) {
-    console.error("Error in deleteTicket service:", error)
+    console.error("Error in deleteTicket service:", error);
     return {
       status: 'error',
       code: 500,
