@@ -2,6 +2,7 @@ import { incrementEntryCounts } from "../counters";
 
 export const createService = async (body: any, db: any) => {
     try {
+      const now = new Date();
       const [currentEntryNumber] = body.entry.split('/').map(Number);
       
       const newService = await db
@@ -18,7 +19,8 @@ export const createService = async (body: any, db: any) => {
           paid_in_bank: body.paid_in_bank,
           profit: body.profit,
           remaining_amount: body.remaining_amount,
-          visa_type: body.visa_type
+          visa_type: body.visa_type,
+          createdAt: now
         })
         .returningAll()
         .executeTakeFirst();
@@ -101,6 +103,7 @@ export const createService = async (body: any, db: any) => {
   
   export const updateService = async (id: number, body: any, db: any) => {
     try {
+      const now = new Date();
       const updatedService = await db
         .updateTable('services')
         .set({
@@ -115,7 +118,8 @@ export const createService = async (body: any, db: any) => {
           paid_in_bank: body.paid_in_bank,
           profit: body.profit,
           remaining_amount: body.remaining_amount,
-          visa_type: body.visa_type
+          visa_type: body.visa_type,
+          createdAt: now
         })
         .where('id', '=', id)
         .returningAll()

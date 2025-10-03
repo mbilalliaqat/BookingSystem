@@ -3,6 +3,7 @@ import { incrementEntryCounts } from "../counters";
 
 export const createProtector = async (body: any, db:any) => {
   try {
+    const now = new Date();
     const [currentEntryNumber] = body.entry.split('/').map(Number);
 
     const newProtector = await db
@@ -19,7 +20,8 @@ export const createProtector = async (body: any, db:any) => {
         additional_charges: body.additional_charges,
         file_no: body.file_no,
         employee: body.employee,
-        withdraw: body.withdraw
+        withdraw: body.withdraw,
+        createdAt: now
       })
       .returningAll()
       .executeTakeFirst();
@@ -69,6 +71,7 @@ export const getProtectors = async (db:any) => {
 
 export const updateProtector = async (id: number, body: any,db:any) => {
   try {
+     const now = new Date();
     const updatedProtector = await db
       .updateTable('protector')
       .set({
@@ -83,7 +86,8 @@ export const updateProtector = async (id: number, body: any,db:any) => {
         additional_charges: body.additional_charges,
         file_no: body.file_no,
         employee: body.employee,
-        withdraw: body.withdraw
+        withdraw: body.withdraw,
+        createdAt: now
       })
       .where('id', '=', id)
       .returningAll()

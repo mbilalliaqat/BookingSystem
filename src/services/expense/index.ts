@@ -3,6 +3,7 @@ import { incrementEntryCounts } from "../counters";
 
 export const createExpense = async (body: any, db: any) => {
   try {
+    const now = new Date();
     const [currentEntryNumber] = body.entry.split('/').map(Number);
 
     const newExpense = await db
@@ -14,7 +15,8 @@ export const createExpense = async (body: any, db: any) => {
         detail: body.detail,
         total_amount: body.total_amount,
         selection: body.selection,
-        withdraw:body.withdraw
+        withdraw:body.withdraw,
+        createdAt: now
       })
       .returningAll()
       .executeTakeFirst();
@@ -97,6 +99,7 @@ export const getExpenseById = async (id: number, db: any) => {
 
 export const updateExpense = async (id: number, body: any, db: any) => {
   try {
+    const now = new Date();
     const updatedExpense = await db
       .updateTable('expense')
       .set({
@@ -106,7 +109,8 @@ export const updateExpense = async (id: number, body: any, db: any) => {
         detail: body.detail,
         total_amount: body.total_amount,
         selection: body.selection,
-        withdraw:body.withdraw
+        withdraw:body.withdraw,
+        createdAt: now
       })
       .where('id', '=', id)
       .returningAll()

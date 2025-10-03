@@ -17,6 +17,8 @@ app.get('/dashboard', async (c) => {
           SELECT id FROM "gamca_token"
           UNION ALL
           SELECT id FROM "services"
+          UNION ALL
+          SELECT id FROM "navtcc"
         ) as all_bookings
       `,
       parameters: []
@@ -38,6 +40,8 @@ app.get('/dashboard', async (c) => {
         SELECT 'GAMCA Token' as type, COUNT(*) as count FROM "gamca_token"
         UNION ALL
         SELECT 'Services' as type, COUNT(*) as count FROM "services"
+        UNION ALL
+        SELECT 'Navtcc' as type, COUNT(*) as count FROM "navtcc"
       `,
       parameters: []
     });
@@ -56,6 +60,8 @@ app.get('/dashboard', async (c) => {
             SELECT receivable_amount FROM gamca_token WHERE receivable_amount IS NOT NULL
             UNION ALL
             SELECT receivable_amount FROM services WHERE receivable_amount IS NOT NULL
+            UNION ALL
+             SELECT receivable_amount FROM navtcc WHERE receivable_amount IS NOT NULL
             ) as all_revenue
       `,
       parameters: []
