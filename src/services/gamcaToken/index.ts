@@ -27,7 +27,8 @@ export const createGamcaTokenPayment = async (body: any, db: any) => {
       };
     }
 
-    const amountPaidCash = parseFloat(body.payment_amount) || 0;
+    // ✅ FIXED: Changed from body.payment_amount to body.payed_cash
+    const amountPaidCash = parseFloat(body.payed_cash) || 0;
     const amountPaidBank = parseFloat(body.paid_bank) || 0;
 
     const currentRemaining = parseFloat(currentGamcaToken.remaining_amount) || 0;
@@ -230,34 +231,34 @@ export const updateGamcaToken = async (id: number, body: any, db: any) => {
   }
 };
   
-  export const deleteGamcaToken = async (id: number, db: any) => {
-    try {
-      const deletedGamcaToken = await db
-        .deleteFrom('gamca_token')
-        .where('id', '=', id)
-        .returningAll()
-        .executeTakeFirst();
-  
-      if (!deletedGamcaToken) {
-        return {
-          status: 'error',
-          code: 404,
-          message: 'Gamca token record not found'
-        };
-      }
-  
-      return {
-        status: 'success',
-        code: 200,
-        message: 'Gamca token record deleted successfully'
-      };
-    } catch (error) {
-      console.error('Error in deleteGamcaToken service:', error);
+export const deleteGamcaToken = async (id: number, db: any) => {
+  try {
+    const deletedGamcaToken = await db
+      .deleteFrom('gamca_token')
+      .where('id', '=', id)
+      .returningAll()
+      .executeTakeFirst();
+
+    if (!deletedGamcaToken) {
       return {
         status: 'error',
-        code: 500,
-        message: 'Failed to delete gamca token record',
-        errors: error.message
+        code: 404,
+        message: 'Gamca token record not found'
       };
     }
-  };
+
+    return {
+      status: 'success',
+      code: 200,
+      message: 'Gamca token record deleted successfully'
+    };
+  } catch (error) {
+    console.error('Error in deleteGamcaToken service:', error);
+    return {
+      status: 'error',
+      code: 500,
+      message: 'Failed to delete gamca token record',
+      errors: error.message
+    };
+  }
+};
