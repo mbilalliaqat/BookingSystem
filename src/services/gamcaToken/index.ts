@@ -137,6 +137,9 @@ export const createGamcaToken = async (body: any, db: any) => {
         country: body.country,
         passport_detail: body.passport_detail,
         receivable_amount: body.receivable_amount,
+        payable_to_vendor: body.payable_to_vendor || null,  // ADD THIS LINE
+  vendor_name: body.vendor_name || null,              // ADD THIS LINE
+  agent_name: body.agent_name || null,
         paid_cash: body.paid_cash || 0,
         paid_from_bank: body.paid_from_bank || 0,
         paid_in_bank: body.paid_in_bank || 0,
@@ -192,6 +195,9 @@ export const updateGamcaToken = async (id: number, body: any, db: any) => {
         country: body.country,
         passport_detail: body.passport_detail,
         receivable_amount: body.receivable_amount,
+        payable_to_vendor: body.payable_to_vendor || null,  // ADD THIS LINE
+  vendor_name: body.vendor_name || null,              // ADD THIS LINE
+  agent_name: body.agent_name || null,
         paid_cash: body.paid_cash || 0,
         paid_from_bank: body.paid_from_bank || 0,
         paid_in_bank: body.paid_in_bank || 0,

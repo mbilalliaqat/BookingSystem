@@ -1,14 +1,11 @@
 import { incrementEntryCounts } from "../counters";
 
-// Helper function to convert empty strings to null for date fields
 const formatDateForDB = (dateStr: string | null | undefined): string | null => {
   if (!dateStr || dateStr.trim() === '') {
     return null;
   }
   return dateStr;
 };
-
-
 
 export const createVisaProcessing = async (body: any, db: any) => {
   try {
@@ -33,6 +30,7 @@ export const createVisaProcessing = async (body: any, db: any) => {
         embassy_send_date: formatDateForDB(body.embassy_send_date),
         embassy_return_date: formatDateForDB(body.embassy_return_date),
         protector_date: formatDateForDB(body.protector_date),
+        expiry_medical_date: formatDateForDB(body.expiry_medical_date),
         passport_deliver_date: formatDateForDB(body.passport_deliver_date),
         receivable_amount: body.receivable_amount,
         additional_charges: body.additional_charges,
@@ -41,9 +39,11 @@ export const createVisaProcessing = async (body: any, db: any) => {
         paid_in_bank: body.paid_in_bank || 0,
         profit: body.profit || 0,
         remaining_amount: body.remaining_amount || 0,
-        // Add initial payment tracking fields
         initial_paid_cash: body.paid_cash || 0,
         initial_paid_in_bank: body.paid_in_bank || 0,
+        status: body.status || 'Processing',
+         agent_name: body.agent_name,
+        vendor_name: body.vendor_name,
         created_at: now
       })
       .returningAll()
@@ -72,7 +72,6 @@ export const createVisaProcessing = async (body: any, db: any) => {
 
 export const updateVisaProcessing = async (id: number, body: any, db: any) => {
   try {
-    // Get current visa processing data to preserve initial values
     const currentVisaProcessing = await db
       .selectFrom('visa_processing')
       .select(['initial_paid_cash', 'initial_paid_in_bank'])
@@ -97,6 +96,7 @@ export const updateVisaProcessing = async (id: number, body: any, db: any) => {
         embassy_send_date: formatDateForDB(body.embassy_send_date),
         embassy_return_date: formatDateForDB(body.embassy_return_date),
         protector_date: formatDateForDB(body.protector_date),
+        expiry_medical_date: formatDateForDB(body.expiry_medical_date),
         passport_deliver_date: formatDateForDB(body.passport_deliver_date),
         receivable_amount: body.receivable_amount,
         additional_charges: body.additional_charges,
@@ -105,9 +105,11 @@ export const updateVisaProcessing = async (id: number, body: any, db: any) => {
         paid_in_bank: body.paid_in_bank || 0,
         profit: body.profit || 0,
         remaining_amount: body.remaining_amount || 0,
-        // Preserve initial values or set them if they don't exist
         initial_paid_cash: currentVisaProcessing?.initial_paid_cash || body.paid_cash || 0,
         initial_paid_in_bank: currentVisaProcessing?.initial_paid_in_bank || body.paid_in_bank || 0,
+        status: body.status || 'Processing',
+         agent_name: body.agent_name,
+        vendor_name: body.vendor_name,
         updated_at: new Date()
       })
       .where('id', '=', id)
@@ -139,12 +141,10 @@ export const updateVisaProcessing = async (id: number, body: any, db: any) => {
   }
 };
 
-// Fixed createVisaPayment function in visaProcessing/index.ts
 export const createVisaPayment = async (body: any, db: any) => {
   try {
     const now = new Date();
 
-    // Get current visa processing data
     const currentVisaProcessing = await db
       .selectFrom('visa_processing')
       .select(['remaining_amount', 'paid_cash', 'paid_in_bank', 'initial_paid_cash', 'initial_paid_in_bank'])
@@ -159,23 +159,18 @@ export const createVisaPayment = async (body: any, db: any) => {
       };
     }
 
-    // FIXED: Use consistent field names with frontend
-    // Frontend sends 'payed_cash' and 'paid_bank', not 'payment_amount' and 'paid_bank'
-    const amountPaidCash = parseFloat(body.payed_cash) || 0;  // Changed from body.payment_amount
+    const amountPaidCash = parseFloat(body.payed_cash) || 0;
     const amountPaidBank = parseFloat(body.paid_bank) || 0;
     const totalPaymentAmount = amountPaidCash + amountPaidBank;
 
-    // Parse current values - ensure they're numbers
     const currentRemaining = parseFloat(currentVisaProcessing.remaining_amount) || 0;
     const currentPaidCash = parseFloat(currentVisaProcessing.paid_cash) || 0;
     const currentPaidInBank = parseFloat(currentVisaProcessing.paid_in_bank) || 0;
 
-    // Calculate new values
     const newRemainingAmount = Math.max(0, currentRemaining - totalPaymentAmount);
     const newPaidCash = currentPaidCash + amountPaidCash;
     const newPaidInBank = currentPaidInBank + amountPaidBank;
 
-    // Validate that payment doesn't exceed remaining amount
     if (totalPaymentAmount > currentRemaining) {
       return {
         status: 'error',
@@ -184,23 +179,21 @@ export const createVisaPayment = async (body: any, db: any) => {
       };
     }
 
-    // FIXED: Store values as strings to match your database schema and ticket implementation
     const newPayment = await db
       .insertInto('visa_processing_payments')
       .values({
         visa_processing_id: body.visa_processing_id,
         payment_date: formatDateForDB(body.payment_date) || now.toISOString().split('T')[0],
-        payed_cash: amountPaidCash.toString(),  // Convert to string
-        paid_bank: amountPaidBank.toString(),   // Convert to string
+        payed_cash: amountPaidCash.toString(),
+        paid_bank: amountPaidBank.toString(),
         bank_title: body.bank_title || null,
         recorded_by: body.recorded_by,
         created_at: now,
-        remaining_amount: newRemainingAmount.toString(), // Convert to string to match schema
+        remaining_amount: newRemainingAmount.toString(),
       })
       .returningAll()
       .executeTakeFirst();
 
-    // Update visa processing record - KEEP initial values unchanged
     const updatedVisaProcessing = await db
       .updateTable('visa_processing')
       .set({
@@ -230,11 +223,9 @@ export const createVisaPayment = async (body: any, db: any) => {
     };
   }
 };
-  
-// Fixed deleteVisaProcessing function in visaProcessing/index.ts
+
 export const deleteVisaProcessing = async (id: number, db: any) => {
   try {
-    // First, check if the visa processing record exists
     const visaProcessingRecord = await db
       .selectFrom('visa_processing')
       .selectAll()
@@ -249,7 +240,6 @@ export const deleteVisaProcessing = async (id: number, db: any) => {
       };
     }
 
-    // Delete all related payment records first to avoid foreign key constraint violation
     const deletedPayments = await db
       .deleteFrom('visa_processing_payments')
       .where('visa_processing_id', '=', id)
@@ -257,7 +247,6 @@ export const deleteVisaProcessing = async (id: number, db: any) => {
 
     console.log(`Deleted ${deletedPayments.length || 0} related payment records for visa processing ID: ${id}`);
 
-    // Now delete the main visa processing record
     const deletedVisaProcessing = await db
       .deleteFrom('visa_processing')
       .where('id', '=', id)

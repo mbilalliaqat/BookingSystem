@@ -15,6 +15,8 @@ export const createNavtcc = async (body: any, db: any) => {
           profession_key: body.profession_key,
           passport_detail: body.passport_detail,
           receivable_amount: body.receivable_amount,
+            vendors: body.vendors,  // Store as JSON string
+          agent_name: body.agent_name || null,
           paid_cash: body.paid_cash,
           paid_from_bank: body.paid_from_bank,
           paid_in_bank: body.paid_in_bank,
@@ -61,6 +63,8 @@ export const createNavtcc = async (body: any, db: any) => {
           profession_key: body.profession_key,
           passport_detail: body.passport_detail,
           receivable_amount: body.receivable_amount,
+           vendors: body.vendors,  // Store as JSON string
+          agent_name: body.agent_name || null,
           paid_cash: body.paid_cash,
           paid_from_bank: body.paid_from_bank,
           paid_in_bank: body.paid_in_bank,
