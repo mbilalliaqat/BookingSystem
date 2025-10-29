@@ -2,6 +2,7 @@
 
 interface KyselyDatabaseOperations {
     selectFrom: (tableName: string) => any;
+    insertInto: (tableName: string) => any;
     updateTable: (tableName: string) => any;
     transaction: () => { execute: (callback: (trx: any) => Promise<any>) => Promise<any> };
 }
@@ -11,7 +12,26 @@ interface KyselyDatabaseOperations {
  */
 export const getEntryCounts = async (db: KyselyDatabaseOperations) => {
   try {
-    const counts = await db.selectFrom('entry_counters').selectAll().execute();
+    let counts = await db.selectFrom('entry_counters').selectAll().execute();
+
+    // Ensure 'global' and 'gamca' rows exist
+    if (!counts.find(c => c.form_type === 'global')) {
+      await db
+        .insertInto('entry_counters')
+        .values({ form_type: 'global', current_count: 0, global_count: 0 })
+        .execute();
+    }
+    if (!counts.find(c => c.form_type === 'gamca')) {
+      await db
+        .insertInto('entry_counters')
+        .values({ form_type: 'gamca', current_count: 0, global_count: 0 })
+        .execute();
+    }
+
+    // Fetch updated counts
+    counts = await db.selectFrom('entry_counters').selectAll().execute();
+    console.log('Fetched entry counts:', JSON.stringify(counts, null, 2));
+
     return {
       status: 'success',
       code: 200,
@@ -65,18 +85,19 @@ export const incrementEntryCounts = async (formType: string, actualEntryNumber: 
 
       const currentGlobalCount = globalRow?.global_count || 0;
       
-      // Only increment global count if this is actually a new entry
-      // (i.e., actualEntryNumber is greater than the previous current_count)
+      // Only increment global count for main form types if this is a new entry
       let newGlobalCount = currentGlobalCount;
-      if (actualEntryNumber > currentFormCount) {
+      const mainFormTypes = ['gamca', 'ticket', 'umrah'];
+      if (actualEntryNumber > currentFormCount && mainFormTypes.includes(formType)) {
         newGlobalCount = currentGlobalCount + 1;
-        
         // Update the global_count for all rows
         await trx
           .updateTable('entry_counters')
           .set({ global_count: newGlobalCount })
           .execute();
       }
+
+      console.log(`Incrementing counts: formType=${formType}, actualEntryNumber=${actualEntryNumber}, currentFormCount=${currentFormCount}, newGlobalCount=${newGlobalCount}`);
 
       return {
         formType: updatedFormCount.form_type,

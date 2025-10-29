@@ -2,7 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "bookingsms",
   "main": "src/index.ts",
-  "compatibility_date": "2025-04-24",
+  "compatibility_date": "2025-04-22",
   "account_id": "7a5edb8be1c28574e70cfcd836591453",
   "observability": {
     "enabled": true
@@ -13,5 +13,6 @@
   "vars": {
     "DATABASE_URL": "postgresql://neondb_owner:npg_U2uOGDv5yYLC@ep-yellow-grass-a4fsxeoc-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require",
     "ENCRYPTION_SECRET_KEY": "abcdefjsitisasecretkey"
+    
   }
 }

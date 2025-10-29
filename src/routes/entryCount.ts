@@ -3,11 +3,11 @@
 import app from '../app';
 import { incrementEntryCounts, getEntryCounts } from '../services/counters';
 
-
 app.get('/api/entry/counts', async (c) => {
   try {
     const db = globalThis.env.DB;
     const result = await getEntryCounts(db);
+    console.log('Fetched entry counts via /api/entry/counts:', JSON.stringify(result, null, 2));
     return c.json(result, result.code);
   } catch (error: any) {
     console.error('Error fetching entry counts via route:', error);
@@ -28,9 +28,10 @@ app.post('/api/entry/increment', async (c) => {
     const db = globalThis.env.DB;
     // Pass actualEntryNumber to the service function
     const result = await incrementEntryCounts(formType, actualEntryNumber, db);
+    console.log(`Increment entry result for /api/entry/increment: formType=${formType}, actualEntryNumber=${actualEntryNumber}, result=${JSON.stringify(result, null, 2)}`);
     return c.json(result, result.code);
   } catch (error: any) {
-    console.error('Error updating entry counts via route:', error); // Changed message
-    return c.json({ status: 'error', message: 'Failed to update entry counts' }, 500); // Changed message
+    console.error('Error updating entry counts via route:', error);
+    return c.json({ status: 'error', message: 'Failed to update entry counts' }, 500);
   }
 });

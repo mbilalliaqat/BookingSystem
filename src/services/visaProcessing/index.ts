@@ -42,8 +42,10 @@ export const createVisaProcessing = async (body: any, db: any) => {
         initial_paid_cash: body.paid_cash || 0,
         initial_paid_in_bank: body.paid_in_bank || 0,
         status: body.status || 'Processing',
-         agent_name: body.agent_name,
-        vendor_name: body.vendor_name,
+        agent_name: body.agent_name || null,
+        vendor_name: body.vendor_name || null,
+        payable_to_vendor: body.payable_to_vendor || 0,
+        detail: body.detail || null,
         created_at: now
       })
       .returningAll()
@@ -108,8 +110,10 @@ export const updateVisaProcessing = async (id: number, body: any, db: any) => {
         initial_paid_cash: currentVisaProcessing?.initial_paid_cash || body.paid_cash || 0,
         initial_paid_in_bank: currentVisaProcessing?.initial_paid_in_bank || body.paid_in_bank || 0,
         status: body.status || 'Processing',
-         agent_name: body.agent_name,
-        vendor_name: body.vendor_name,
+        agent_name: body.agent_name || null,
+        vendor_name: body.vendor_name || null,
+        payable_to_vendor: body.payable_to_vendor || 0,
+        detail: body.detail,
         updated_at: new Date()
       })
       .where('id', '=', id)
