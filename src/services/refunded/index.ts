@@ -2,29 +2,30 @@ import { incrementEntryCounts } from "../counters";
 
 export const createRefunded = async (body: any, db: any) => {
   try {
-
-     const [currentEntryNumber] = body.entry.split('/').map(Number);
+    const [currentEntryNumber] = body.entry.split('/').map(Number);
      
     const newRefunded = await db
       .insertInto('refunded')
       .values({
         name: body.name,
-        employee:body.employee,
-        entry:body.entry,
+        employee: body.employee,
+        entry: body.entry,
         date: body.date,
         passport: body.passport,
         reference: body.reference,
-        paid_fee_date:body.paid_fee_date,
-        paid_refund_date:body.paid_refund_date,
-        total_balance:body.total_balance,
-        withdraw:body.withdraw
+        paid_fee_date: body.paid_fee_date,
+        paid_refund_date: body.paid_refund_date,
+        total_balance: body.total_balance,
+        withdraw: body.withdraw,
+        bank_name: body.bank_name || null,     // ADDED
+        paid_bank: body.paid_bank || null      // ADDED
       })
       .returningAll()
       .executeTakeFirst();
 
-       if (newRefunded) {
-            await incrementEntryCounts('refunded', currentEntryNumber, db); // Update entry_counters table
-          }
+    if (newRefunded) {
+      await incrementEntryCounts('refunded', currentEntryNumber, db);
+    }
 
     return {
       status: 'success',
@@ -72,15 +73,17 @@ export const updateRefunded = async (id: number, body: any, db: any) => {
       .updateTable('refunded')
       .set({
         name: body.name,
-        employee:body.employee,
-        entry:body.entry,
+        employee: body.employee,
+        entry: body.entry,
         date: body.date,
         passport: body.passport,
         reference: body.reference,
-        paid_fee_date:body.paid_fee_date,
-        paid_refund_date:body.paid_refund_date,
-        total_balance:body.total_balance,
-        withdraw:body.withdraw
+        paid_fee_date: body.paid_fee_date,
+        paid_refund_date: body.paid_refund_date,
+        total_balance: body.total_balance,
+        withdraw: body.withdraw,
+        bank_name: body.bank_name || null,     // ADDED
+        paid_bank: body.paid_bank || null      // ADDED
       })
       .where('id', '=', id)
       .returningAll()
