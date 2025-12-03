@@ -45,6 +45,8 @@ export const createVisaProcessing = async (body: any, db: any) => {
         agent_name: body.agent_name || null,
         vendor_name: body.vendor_name || null,
         payable_to_vendor: body.payable_to_vendor || 0,
+        booking_date: formatDateForDB(body.booking_date),
+        remaining_date: formatDateForDB(body.remaining_date),
         detail: body.detail || null,
         created_at: now
       })
@@ -114,6 +116,8 @@ export const updateVisaProcessing = async (id: number, body: any, db: any) => {
         vendor_name: body.vendor_name || null,
         payable_to_vendor: body.payable_to_vendor || 0,
         detail: body.detail,
+        booking_date: formatDateForDB(body.booking_date),
+        remaining_date: formatDateForDB(body.remaining_date),
         updated_at: new Date()
       })
       .where('id', '=', id)

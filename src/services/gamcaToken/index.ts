@@ -1,6 +1,5 @@
 import { incrementEntryCounts } from "../counters";
 
-
 const formatDateForDB = (dateStr: string | null | undefined): string | null => {
   if (!dateStr || dateStr.trim() === '') {
     return null;
@@ -27,9 +26,8 @@ export const createGamcaTokenPayment = async (body: any, db: any) => {
       };
     }
 
-    // ✅ FIXED: Changed from body.payment_amount to body.payed_cash
-    const amountPaidCash = parseFloat(body.payed_cash) || 0;
-    const amountPaidBank = parseFloat(body.paid_bank) || 0;
+    const amountPaidCash = parseFloat(body.paid_cash) || 0;
+    const amountPaidBank = parseFloat(body.paid_in_bank) || 0;
 
     const currentRemaining = parseFloat(currentGamcaToken.remaining_amount) || 0;
     const currentPaidCash = parseFloat(currentGamcaToken.paid_cash) || 0;
@@ -45,8 +43,8 @@ export const createGamcaTokenPayment = async (body: any, db: any) => {
       .values({
         gamca_token_id: body.gamca_token_id,
         payment_date: formatDateForDB(body.payment_date) || now.toISOString().split('T')[0],
-        payed_cash: amountPaidCash.toString(),
-        paid_bank: amountPaidBank.toString(),
+        paid_cash: amountPaidCash,
+        paid_in_bank: amountPaidBank,
         bank_title: body.bank_title || null,
         recorded_by: body.recorded_by,
         created_at: now,
@@ -55,8 +53,8 @@ export const createGamcaTokenPayment = async (body: any, db: any) => {
       .returningAll()
       .executeTakeFirst();
 
-    // Update GAMCA token record
-    const updatedGamcaToken = await db
+    // Update main gamca_token record
+    await db
       .updateTable('gamca_token')
       .set({
         remaining_amount: newRemainingAmount,
@@ -65,22 +63,20 @@ export const createGamcaTokenPayment = async (body: any, db: any) => {
         updated_at: now,
       })
       .where('id', '=', body.gamca_token_id)
-      .returningAll()
-      .executeTakeFirst();
+      .execute();
 
     return {
       status: 'success',
       code: 201,
-      message: 'GAMCA token payment recorded and amounts updated successfully',
+      message: 'Payment recorded and GAMCA token updated successfully',
       payment: newPayment,
-      gamca_token: updatedGamcaToken,
     };
-  } catch (error) {
-    console.error('Error in createGamcaTokenPayment service:', error);
+  } catch (error: any) {
+    console.error('Error in createGamcaTokenPayment:', error);
     return {
       status: 'error',
       code: 500,
-      message: 'Failed to record GAMCA token payment or update record',
+      message: 'Failed to record payment',
       errors: error.message,
     };
   }
@@ -92,40 +88,30 @@ export const getGamcaTokenPaymentsByTokenId = async (gamcaTokenId: number, db: a
       .selectFrom('gamca_token_payments')
       .selectAll()
       .where('gamca_token_id', '=', gamcaTokenId)
-      .orderBy('created_at', 'asc') // Order by creation timestamp for chronological history
+      .orderBy('created_at', 'desc')
       .execute();
-
-    if (!payments || payments.length === 0) {
-      return {
-        status: 'success',
-        code: 200,
-        message: 'No payments found for this GAMCA token record',
-        payments: [],
-      };
-    }
 
     return {
       status: 'success',
       code: 200,
-      message: 'GAMCA token payment history fetched successfully',
-      payments: payments,
+      message: payments.length > 0 ? 'Payments fetched' : 'No payments found',
+      payments,
     };
-  } catch (error) {
-    console.error('Error in getGamcaTokenPaymentsByTokenId service:', error);
+  } catch (error: any) {
+    console.error('Error fetching payments:', error);
     return {
       status: 'error',
       code: 500,
-      message: 'Failed to fetch GAMCA token payment history',
+      message: 'Failed to fetch payment history',
       errors: error.message,
     };
   }
 };
 
-// Updated createGamcaToken function with initial payment tracking
 export const createGamcaToken = async (body: any, db: any) => {
   try {
-    const now = new Date(); 
-    const [currentEntryNumber] = body.entry.split('/').map(Number);
+    const now = new Date();
+    const entryNumber = body.entry?.split('/')[0] ? parseInt(body.entry.split('/')[0]) : null;
 
     const newGamcaToken = await db
       .insertInto('gamca_token')
@@ -135,55 +121,66 @@ export const createGamcaToken = async (body: any, db: any) => {
         entry: body.entry,
         reference: body.reference,
         country: body.country,
+        booking_date: formatDateForDB(body.booking_date),
+        remaining_date: formatDateForDB(body.remaining_date),
         passport_detail: body.passport_detail,
         receivable_amount: body.receivable_amount,
-        payable_to_vendor: body.payable_to_vendor || null,  // ADD THIS LINE
-  vendor_name: body.vendor_name || null,              // ADD THIS LINE
-  agent_name: body.agent_name || null,
         paid_cash: body.paid_cash || 0,
-        paid_from_bank: body.paid_from_bank || 0,
+        paid_from_bank: body.paid_from_bank || null,
         paid_in_bank: body.paid_in_bank || 0,
+        payable_to_vendor: body.payable_to_vendor || 0,
+        vendor_name: body.vendor_name || null,
+        vendors_detail: body.vendors_detail || null, // Save full vendor array
+        agent_name: body.agent_name || null,
         profit: body.profit || 0,
-        remaining_amount: body.remaining_amount || 0,
-        // Add initial payment tracking fields
+        remaining_amount: body.remaining_amount || body.receivable_amount || 0,
         initial_paid_cash: body.paid_cash || 0,
         initial_paid_in_bank: body.paid_in_bank || 0,
         created_at: now,
-        updated_at: now
+        updated_at: now,
       })
       .returningAll()
       .executeTakeFirst();
 
-    if (newGamcaToken) {
-      await incrementEntryCounts('gamca', currentEntryNumber, db);
+    if (newGamcaToken && entryNumber) {
+      await incrementEntryCounts('gamca', entryNumber, db);
     }
 
     return {
       status: 'success',
       code: 201,
-      message: 'Gamca token created successfully',
-      data: newGamcaToken
+      message: 'GAMCA token created successfully',
+      data: newGamcaToken,
     };
-  } catch (error) {
-    console.error('Error in createGamcaToken service:', error);
+  } catch (error: any) {
+    console.error('Error in createGamcaToken:', error);
     return {
       status: 'error',
       code: 500,
-      message: 'Failed to create Gamca token',
-      errors: error.message
+      message: 'Failed to create GAMCA token',
+      errors: error.message,
     };
   }
 };
 
-// Updated updateGamcaToken function to preserve initial payment values
 export const updateGamcaToken = async (id: number, body: any, db: any) => {
   try {
-    // Get current GAMCA token data to preserve initial values
-    const currentGamcaToken = await db
+    const now = new Date();
+
+    // Fetch current record to preserve initial payments
+    const current = await db
       .selectFrom('gamca_token')
       .select(['initial_paid_cash', 'initial_paid_in_bank'])
       .where('id', '=', id)
       .executeTakeFirst();
+
+    if (!current) {
+      return {
+        status: 'error',
+        code: 404,
+        message: 'GAMCA token not found',
+      };
+    }
 
     const updatedGamcaToken = await db
       .updateTable('gamca_token')
@@ -193,20 +190,23 @@ export const updateGamcaToken = async (id: number, body: any, db: any) => {
         entry: body.entry,
         reference: body.reference,
         country: body.country,
+        booking_date: formatDateForDB(body.booking_date),
+        remaining_date: formatDateForDB(body.remaining_date),
         passport_detail: body.passport_detail,
         receivable_amount: body.receivable_amount,
-        payable_to_vendor: body.payable_to_vendor || null,  // ADD THIS LINE
-  vendor_name: body.vendor_name || null,              // ADD THIS LINE
-  agent_name: body.agent_name || null,
         paid_cash: body.paid_cash || 0,
-        paid_from_bank: body.paid_from_bank || 0,
+        paid_from_bank: body.paid_from_bank || null,
         paid_in_bank: body.paid_in_bank || 0,
+        payable_to_vendor: body.payable_to_vendor || 0,
+        vendor_name: body.vendor_name || null,
+        vendors_detail: body.vendors_detail || null,
+        agent_name: body.agent_name || null,
         profit: body.profit || 0,
         remaining_amount: body.remaining_amount || 0,
-        // Preserve initial values or set them if they don't exist
-        initial_paid_cash: currentGamcaToken?.initial_paid_cash || body.paid_cash || 0,
-        initial_paid_in_bank: currentGamcaToken?.initial_paid_in_bank || body.paid_in_bank || 0,
-        updated_at: new Date()
+        // Preserve initial paid amounts (only set once on create)
+        initial_paid_cash: current.initial_paid_cash ?? (body.paid_cash || 0),
+        initial_paid_in_bank: current.initial_paid_in_bank ?? (body.paid_in_bank || 0),
+        updated_at: now,
       })
       .where('id', '=', id)
       .returningAll()
@@ -216,55 +216,56 @@ export const updateGamcaToken = async (id: number, body: any, db: any) => {
       return {
         status: 'error',
         code: 404,
-        message: 'Gamca token record not found'
+        message: 'GAMCA token not found',
       };
     }
 
     return {
       status: 'success',
       code: 200,
-      message: 'Gamca token record updated successfully',
-      data: updatedGamcaToken
+      message: 'GAMCA token updated successfully',
+      data: updatedGamcaToken,
     };
-  } catch (error) {
-    console.error('Error in updateGamcaToken service:', error);
+  } catch (error: any) {
+    console.error('Error in updateGamcaToken:', error);
     return {
       status: 'error',
       code: 500,
-      message: 'Failed to update gamca token record',
-      errors: error.message
+      message: 'Failed to update GAMCA token',
+      errors: error.message,
     };
   }
 };
-  
+
 export const deleteGamcaToken = async (id: number, db: any) => {
   try {
-    const deletedGamcaToken = await db
+    const deleted = await db
       .deleteFrom('gamca_token')
       .where('id', '=', id)
       .returningAll()
       .executeTakeFirst();
 
-    if (!deletedGamcaToken) {
+    if (!deleted) {
       return {
         status: 'error',
         code: 404,
-        message: 'Gamca token record not found'
+        message: 'GAMCA token not found',
       };
     }
 
     return {
       status: 'success',
       code: 200,
-      message: 'Gamca token record deleted successfully'
+      message: 'GAMCA token deleted successfully',
+      data: deleted,
     };
-  } catch (error) {
-    console.error('Error in deleteGamcaToken service:', error);
+  } catch (error: any) {
+    console.error('Error deleting GAMCA token:', error);
     return {
       status: 'error',
       code: 500,
-      message: 'Failed to delete gamca token record',
-      errors: error.message
+      message: 'Failed to delete GAMCA token',
+      errors: error.message,
     };
   }
 };

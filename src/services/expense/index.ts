@@ -1,10 +1,30 @@
 import { incrementEntryCounts } from "../counters";
 
-
 export const createExpense = async (body: any, db: any) => {
   try {
     const now = new Date();
     const [currentEntryNumber] = body.entry.split('/').map(Number);
+
+    // Handle opening balance mode
+    let withdrawAmount = body.withdraw;
+    let totalAmount = body.total_amount;
+    let selectionType = body.selection;
+
+    // If cash_office field exists (opening balance mode)
+    if (body.cash_office !== undefined && body.cash_office !== null) {
+      const cashOfficeValue = parseFloat(body.cash_office);
+      
+      // Set selection to OPENING BALANCE
+      selectionType = 'OPENING BALANCE';
+      totalAmount = 0;
+      
+      // If negative, it's a withdraw; if positive, it's added to cash
+      if (cashOfficeValue < 0) {
+        withdrawAmount = Math.abs(cashOfficeValue);
+      } else {
+        withdrawAmount = 0;
+      }
+    }
 
     const newExpense = await db
       .insertInto('expense')
@@ -13,27 +33,29 @@ export const createExpense = async (body: any, db: any) => {
         entry: body.entry,
         date: body.date,
         detail: body.detail,
-        total_amount: body.total_amount,
-        selection: body.selection,
-        withdraw: body.withdraw,
+        total_amount: totalAmount,
+        selection: selectionType,
+        withdraw: withdrawAmount,
         vendor_name: body.vendor_name,
+        cash_office: body.cash_office !== undefined ? parseFloat(body.cash_office) : null,
         createdAt: now
       })
       .returningAll()
       .executeTakeFirst();
 
     if (newExpense) {
-      await incrementEntryCounts('expense', currentEntryNumber, db); // Update entry_counters table
+      await incrementEntryCounts('expense', currentEntryNumber, db);
       
       // If withdraw amount exists and vendor_name is provided, create vendor transaction
-      if (body.withdraw && parseFloat(body.withdraw) > 0 && body.vendor_name) {
+      // Don't create vendor transaction for opening balance entries
+      if (withdrawAmount && parseFloat(withdrawAmount) > 0 && body.vendor_name && selectionType !== 'OPENING BALANCE') {
         try {
           await db
             .insertInto('vender')
             .values({
               vender_name: body.vendor_name,
               detail: `Expense - ${body.detail}`,
-              debit: parseFloat(body.withdraw) || 0,
+              debit: parseFloat(withdrawAmount) || 0,
               credit: null,
               date: body.date,
               entry: body.entry,
@@ -43,7 +65,6 @@ export const createExpense = async (body: any, db: any) => {
             .execute();
         } catch (vendorError) {
           console.error('Error creating vendor transaction:', vendorError);
-          // Continue even if vendor transaction fails
         }
       }
     }
@@ -139,6 +160,23 @@ export const updateExpense = async (id: number, body: any, db: any) => {
       };
     }
 
+    // Handle opening balance mode for updates
+    let withdrawAmount = body.withdraw;
+    let totalAmount = body.total_amount;
+    let selectionType = body.selection;
+
+    if (body.cash_office !== undefined && body.cash_office !== null) {
+      const cashOfficeValue = parseFloat(body.cash_office);
+      selectionType = 'OPENING BALANCE';
+      totalAmount = 0;
+      
+      if (cashOfficeValue < 0) {
+        withdrawAmount = Math.abs(cashOfficeValue);
+      } else {
+        withdrawAmount = 0;
+      }
+    }
+
     const updatedExpense = await db
       .updateTable('expense')
       .set({
@@ -146,10 +184,11 @@ export const updateExpense = async (id: number, body: any, db: any) => {
         entry: body.entry,
         date: body.date,
         detail: body.detail,
-        total_amount: body.total_amount,
-        selection: body.selection,
-        withdraw: body.withdraw,
+        total_amount: totalAmount,
+        selection: selectionType,
+        withdraw: withdrawAmount,
         vendor_name: body.vendor_name,
+        cash_office: body.cash_office !== undefined ? parseFloat(body.cash_office) : null,
         createdAt: now
       })
       .where('id', '=', id)
@@ -171,15 +210,15 @@ export const updateExpense = async (id: number, body: any, db: any) => {
         }
       }
 
-      // Create new vendor transaction if needed
-      if (body.withdraw && parseFloat(body.withdraw) > 0 && body.vendor_name) {
+      // Create new vendor transaction if needed (not for opening balance)
+      if (withdrawAmount && parseFloat(withdrawAmount) > 0 && body.vendor_name && selectionType !== 'OPENING BALANCE') {
         try {
           await db
             .insertInto('vender')
             .values({
               vender_name: body.vendor_name,
               detail: `Expense - ${body.detail}`,
-              debit: parseFloat(body.withdraw) || 0,
+              debit: parseFloat(withdrawAmount) || 0,
               credit: null,
               date: body.date,
               entry: body.entry,
