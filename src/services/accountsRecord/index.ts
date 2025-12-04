@@ -43,6 +43,7 @@ export const createEntry = async (body: any, db: any) => {
         debit: debit,
         balance: newBalance,
         vendor_name: body.vendor_name,
+        created_at: new Date(),
       })
       .returningAll()
       .executeTakeFirst();
@@ -85,7 +86,8 @@ export const getEntriesByBank = async (bankName: string, db: any) => {
       credit: Number(entry.credit),
       debit: Number(entry.debit),
       balance: Number(entry.balance),
-      vendor_name: entry.vendor_name
+      vendor_name: entry.vendor_name,
+      created_at: entry.created_at
     }));
   } catch (error) {
     console.error('Error getting entries:', error);
