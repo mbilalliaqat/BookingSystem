@@ -29,8 +29,8 @@ export const createService = async (body: any, db: any) => {
         // Multiple vendors support (JSON string from frontend)
         vendors: body.vendors ? JSON.stringify(body.vendors) : null,
         agent_name: body.agent_name || null,
-        created_at: now,
-        updated_at: now,
+        createdAt: now,
+        // updated_at: now,
       })
       .returningAll()
       .executeTakeFirst();
@@ -78,7 +78,7 @@ export const updateService = async (id: number, body: any, db: any) => {
         remaining_amount: parseFloat(body.remaining_amount) || 0,
         vendors: body.vendors ? JSON.stringify(body.vendors) : null,
         agent_name: body.agent_name || null,
-        updated_at: now, // Only update updated_at
+        // updated_at: now, // Only update updated_at
       })
       .where("id", "=", id)
       .returningAll()
@@ -114,7 +114,7 @@ export const getServices = async (db: any) => {
     const services = await db
       .selectFrom("services")
       .selectAll()
-      .orderBy("created_at", "desc")
+      .orderBy("createdAt", "desc")
       .execute();
 
     return {
