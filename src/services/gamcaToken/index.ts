@@ -111,7 +111,11 @@ export const getGamcaTokenPaymentsByTokenId = async (gamcaTokenId: number, db: a
 export const createGamcaToken = async (body: any, db: any) => {
   try {
     const now = new Date();
-    const entryNumber = body.entry?.split('/')[0] ? parseInt(body.entry.split('/')[0]) : null;
+    // Extract number after space and before slash: "GM 1/3" -> 1
+    const entryMatch = body.entry.match(/(\d+)\/\d+/);
+    const currentEntryNumber = entryMatch ? parseInt(entryMatch[1]) : null;
+
+    
 
     const newGamcaToken = await db
       .insertInto('gamca_token')
@@ -130,7 +134,7 @@ export const createGamcaToken = async (body: any, db: any) => {
         paid_in_bank: body.paid_in_bank || 0,
         payable_to_vendor: body.payable_to_vendor || 0,
         vendor_name: body.vendor_name || null,
-        vendors_detail: body.vendors_detail ? JSON.stringify(body.vendors_detail) : null, // Save full vendor array
+        vendors_detail: body.vendors_detail ? JSON.stringify(body.vendors_detail) : null,
         agent_name: body.agent_name || null,
         profit: body.profit || 0,
         remaining_amount: body.remaining_amount || body.receivable_amount || 0,
@@ -142,10 +146,12 @@ export const createGamcaToken = async (body: any, db: any) => {
       .returningAll()
       .executeTakeFirst();
 
-    if (newGamcaToken && entryNumber) {
-      await incrementEntryCounts('gamca', entryNumber, db);
-    }
+    
 
+   if (newGamcaToken && currentEntryNumber) {
+  console.log('Calling incrementEntryCounts for GAMCA');
+  await incrementEntryCounts('gamca', currentEntryNumber, db); // Use 'gamca' not 'gamca_token'
+}
     return {
       status: 'success',
       code: 201,

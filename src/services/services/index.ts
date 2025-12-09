@@ -8,7 +8,10 @@ const formatDateForDB = (dateStr: string | null | undefined): string | null => {
 export const createService = async (body: any, db: any) => {
   try {
     const now = new Date();
-    const entryNumber = body.entry?.split("/")[0] ? parseInt(body.entry.split("/")[0]) : null;
+    // Extract number from formats like "SE 2/5", "2/5" -> extracts 2
+    const entryMatch = body.entry.match(/(\d+)\/(\d+)/);
+    const currentEntryNumber = entryMatch ? parseInt(entryMatch[1]) : null;
+
 
     const newService = await db
       .insertInto("services")
@@ -17,7 +20,7 @@ export const createService = async (body: any, db: any) => {
         entry: body.entry,
         customer_add: body.customer_add,
         booking_date: formatDateForDB(body.booking_date),
-        remaining_date: formatDateForDB(body.remaining_date), // ← NEW
+        remaining_date: formatDateForDB(body.remaining_date),
         specific_detail: body.specific_detail,
         visa_type: body.visa_type,
         receivable_amount: parseFloat(body.receivable_amount) || 0,
@@ -26,17 +29,18 @@ export const createService = async (body: any, db: any) => {
         paid_in_bank: parseFloat(body.paid_in_bank) || 0,
         profit: parseFloat(body.profit) || 0,
         remaining_amount: parseFloat(body.remaining_amount) || 0,
-        // Multiple vendors support (JSON string from frontend)
         vendors: body.vendors ? JSON.stringify(body.vendors) : null,
         agent_name: body.agent_name || null,
         createdAt: now,
-        // updated_at: now,
       })
       .returningAll()
       .executeTakeFirst();
 
-    if (newService && entryNumber) {
-      await incrementEntryCounts("services", entryNumber, db);
+   
+
+    if (newService && currentEntryNumber) {
+      console.log('Calling incrementEntryCounts for Service');
+      await incrementEntryCounts("services", currentEntryNumber, db);
     }
 
     return {
@@ -67,7 +71,7 @@ export const updateService = async (id: number, body: any, db: any) => {
         entry: body.entry,
         customer_add: body.customer_add,
         booking_date: formatDateForDB(body.booking_date),
-        remaining_date: formatDateForDB(body.remaining_date), // ← NEW
+        remaining_date: formatDateForDB(body.remaining_date),
         specific_detail: body.specific_detail,
         visa_type: body.visa_type,
         receivable_amount: parseFloat(body.receivable_amount) || 0,
@@ -78,7 +82,6 @@ export const updateService = async (id: number, body: any, db: any) => {
         remaining_amount: parseFloat(body.remaining_amount) || 0,
         vendors: body.vendors ? JSON.stringify(body.vendors) : null,
         agent_name: body.agent_name || null,
-        // updated_at: now, // Only update updated_at
       })
       .where("id", "=", id)
       .returningAll()

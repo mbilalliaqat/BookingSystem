@@ -1,5 +1,3 @@
-// backend/src/services/counters.ts
-
 interface KyselyDatabaseOperations {
     selectFrom: (tableName: string) => any;
     insertInto: (tableName: string) => any;
@@ -7,25 +5,20 @@ interface KyselyDatabaseOperations {
     transaction: () => { execute: (callback: (trx: any) => Promise<any>) => Promise<any> };
 }
 
-/**
- * Fetches all current entry counts from the database.
- */
 export const getEntryCounts = async (db: KyselyDatabaseOperations) => {
   try {
     let counts = await db.selectFrom('entry_counters').selectAll().execute();
 
-    // Ensure 'global' and 'gamca' rows exist
-    if (!counts.find(c => c.form_type === 'global')) {
-      await db
-        .insertInto('entry_counters')
-        .values({ form_type: 'global', current_count: 0, global_count: 0 })
-        .execute();
-    }
-    if (!counts.find(c => c.form_type === 'gamca')) {
-      await db
-        .insertInto('entry_counters')
-        .values({ form_type: 'gamca', current_count: 0, global_count: 0 })
-        .execute();
+    // Ensure all required rows exist
+    const requiredTypes = ['global', 'gamca', 'ticket', 'umrah', 'services'];
+    
+    for (const type of requiredTypes) {
+      if (!counts.find(c => c.form_type === type)) {
+        await db
+          .insertInto('entry_counters')
+          .values({ form_type: type, current_count: 0, global_count: 0 })
+          .execute();
+      }
     }
 
     // Fetch updated counts
@@ -49,13 +42,6 @@ export const getEntryCounts = async (db: KyselyDatabaseOperations) => {
   }
 };
 
-/**
- * Updates a specific form type's count and the global count across all rows.
- * @param formType The type of form (e.g., 'ticket', 'umrah', 'gamca').
- * @param actualEntryNumber The actual entry number that was just used for a new record.
- * @param db The database instance.
- * @returns The updated form and global counts.
- */
 export const incrementEntryCounts = async (formType: string, actualEntryNumber: number, db: KyselyDatabaseOperations) => {
   try {
     const result = await db.transaction().execute(async (trx) => {
@@ -87,7 +73,7 @@ export const incrementEntryCounts = async (formType: string, actualEntryNumber: 
       
       // Only increment global count for main form types if this is a new entry
       let newGlobalCount = currentGlobalCount;
-      const mainFormTypes = ['gamca', 'ticket', 'umrah'];
+      const mainFormTypes = ['gamca', 'ticket', 'umrah', 'services'];
       if (actualEntryNumber > currentFormCount && mainFormTypes.includes(formType)) {
         newGlobalCount = currentGlobalCount + 1;
         // Update the global_count for all rows
