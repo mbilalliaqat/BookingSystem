@@ -3,57 +3,69 @@ import { incrementEntryCounts } from "../counters";
 export const createVendor = async (body: any, db: any) => {
   try {
     const [currentEntryNumber] = body.entry.split('/').map(Number);
-     
+
     if (!body.vender_name) {
       return {
         status: 'error',
         code: 400,
         message: 'Vendor name is required'
-      }
+      };
     }
 
-    // Parse and validate credit/debit values first
+    // Parse credit and debit values
     let credit = 0;
     let debit = 0;
 
     if (body.credit !== undefined && body.credit !== null && body.credit !== '') {
       const creditValue = Number(body.credit);
-      if (!isNaN(creditValue) && creditValue > 0) {
+      if (!isNaN(creditValue)) {
         credit = creditValue;
       }
     }
-    
+
     if (body.debit !== undefined && body.debit !== null && body.debit !== '') {
       const debitValue = Number(body.debit);
-      if (!isNaN(debitValue) && debitValue > 0) {
+      if (!isNaN(debitValue)) {
         debit = debitValue;
       }
     }
 
-    // Prevent both credit and debit in same transaction
-    if (credit > 0 && debit > 0) {
-      return {
-        status: 'error',
-        code: 400,
-        message: 'Cannot have both credit and debit in the same transaction'
+    // Detect if this is an Opening Balance entry
+    // Opening balance entries can have credit/debit = 0 (or null)
+    const isOpeningBalance = (credit === 0 && debit === 0) && (body.balance !== undefined || body.balance === 0);
+
+    // Validation for normal transactions (not opening balance)
+    if (!isOpeningBalance) {
+      if (credit === 0 && debit === 0) {
+        return {
+          status: 'error',
+          code: 400,
+          message: 'Either credit or debit amount is required'
+        };
+      }
+
+      if (credit > 0 && debit > 0) {
+        return {
+          status: 'error',
+          code: 400,
+          message: 'Cannot have both credit and debit in the same transaction'
+        };
       }
     }
 
-    // At least one of credit or debit should be provided
-    if (credit === 0 && debit === 0) {
-      return {
-        status: 'error',
-        code: 400,
-        message: 'Either credit or debit amount is required'
-      }
-    }
-
-    // Get the current balance for this vendor by recalculating from all entries
+    // Calculate current balance for this vendor
     const currentBalance = await calculateCurrentBalance(body.vender_name, db);
 
-    // Calculate new balance: current + credit - debit
-    const newBalance = currentBalance + credit - debit;
+    // Calculate new balance
+    let newBalance = currentBalance + credit - debit;
 
+    // If it's an opening balance entry, use the provided balance directly
+    if (isOpeningBalance) {
+      const openingBalance = parseFloat(body.balance) || 0;
+      newBalance = openingBalance; // override with opening balance value
+    }
+
+    // Insert the new vendor transaction
     const newVendor = await db
       .insertInto('vender')
       .values({
@@ -71,7 +83,8 @@ export const createVendor = async (body: any, db: any) => {
 
     if (newVendor) {
       await incrementEntryCounts('vender', currentEntryNumber, db);
-      // Recalculate all balances for this vendor to ensure consistency
+
+      // Recalculate all balances for this vendor to keep everything consistent
       await recalculateVendorBalances(body.vender_name, db);
     }
 
@@ -90,7 +103,7 @@ export const createVendor = async (body: any, db: any) => {
         debit: Number(newVendor.debit) || 0,
         remaining_amount: Number(newVendor.remaining_amount)
       }
-    }
+    };
 
   } catch (error) {
     console.error('Error creating vendor entry:', error);
@@ -101,7 +114,7 @@ export const createVendor = async (body: any, db: any) => {
       errors: error.message
     };
   }
-}
+};
 
 export const getVendor = async (db: any) => {
   try {

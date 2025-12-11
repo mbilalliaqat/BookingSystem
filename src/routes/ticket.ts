@@ -4,6 +4,8 @@ import { createTicket, updateTicket, deleteTicket,
   // getTicketById,
   createPayment,         // <--- Add this import
   getPaymentsByTicketId,
+    updatePayment,      // <--- Add this
+  deletePayment,
  } from '../services/tickets';
 
 
@@ -156,5 +158,35 @@ app.get('/ticket/:id/payments', async (c) => {
   } catch (error) {
     console.error('Error fetching payment history:', error);
     return c.json({ status: 'error', message: 'Failed to fetch payment history' }, 500);
+  }
+});
+
+app.put('/ticket_payments/:id', async (c) => {
+  try {
+    const paymentId = parseInt(c.req.param('id'));
+    if (isNaN(paymentId)) {
+      return c.json({ status: 'error', code: 400, message: 'Invalid Payment ID' }, 400);
+    }
+    const body = await c.req.json();
+    const result = await updatePayment(paymentId, body, globalThis.env.DB);
+    return c.json(result, result.code);
+  } catch (error) {
+    console.error('Error updating payment:', error);
+    return c.json({ status: 'error', message: 'Failed to update payment' }, 500);
+  }
+});
+
+// Route to delete a payment
+app.delete('/ticket_payments/:id', async (c) => {
+  try {
+    const paymentId = parseInt(c.req.param('id'));
+    if (isNaN(paymentId)) {
+      return c.json({ status: 'error', code: 400, message: 'Invalid Payment ID' }, 400);
+    }
+    const result = await deletePayment(paymentId, globalThis.env.DB);
+    return c.json(result, result.code);
+  } catch (error) {
+    console.error('Error deleting payment:', error);
+    return c.json({ status: 'error', message: 'Failed to delete payment' }, 500);
   }
 });

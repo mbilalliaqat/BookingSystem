@@ -296,3 +296,167 @@ export const getPaymentsByTicketId = async (ticketId: number, db: any) => {
     };
   }
 };
+
+
+export const updatePayment = async (paymentId: number, body: any, db: any) => {
+  try {
+    // Get the current payment to calculate the difference
+    const currentPayment = await db
+      .selectFrom('ticket_payments')
+      .selectAll()
+      .where('id', '=', paymentId)
+      .executeTakeFirst();
+
+    if (!currentPayment) {
+      return {
+        status: 'error',
+        code: 404,
+        message: 'Payment not found',
+      };
+    }
+
+    const oldCashAmount = parseFloat(currentPayment.payed_cash) || 0;
+    const oldBankAmount = parseFloat(currentPayment.paid_bank) || 0;
+    const newCashAmount = parseFloat(body.payed_cash) || 0;
+    const newBankAmount = parseFloat(body.paid_bank) || 0;
+
+    const cashDifference = newCashAmount - oldCashAmount;
+    const bankDifference = newBankAmount - oldBankAmount;
+    const totalDifference = cashDifference + bankDifference;
+
+    // Get current ticket data
+    const currentTicket = await db
+      .selectFrom('ticket')
+      .select(['remaining_amount', 'paid_cash', 'paid_in_bank'])
+      .where('id', '=', currentPayment.ticket_id)
+      .executeTakeFirst();
+
+    if (!currentTicket) {
+      return {
+        status: 'error',
+        code: 404,
+        message: 'Ticket not found',
+      };
+    }
+
+    const newRemainingAmount = parseFloat(currentTicket.remaining_amount) - totalDifference;
+    const newPaidCash = parseFloat(currentTicket.paid_cash) + cashDifference;
+    const newPaidInBank = parseFloat(currentTicket.paid_in_bank) + bankDifference;
+
+    // Update the payment record
+    const updatedPayment = await db
+      .updateTable('ticket_payments')
+      .set({
+        payment_date: formatDateForDB(body.payment_date),
+        payed_cash: newCashAmount.toString(),
+        paid_bank: newBankAmount.toString(),
+        bank_title: body.bank_title || null,
+        recorded_by: body.recorded_by,
+        remaining_amount: newRemainingAmount,
+      })
+      .where('id', '=', paymentId)
+      .returningAll()
+      .executeTakeFirst();
+
+    // Update the ticket amounts
+    await db
+      .updateTable('ticket')
+      .set({
+        remaining_amount: newRemainingAmount,
+        paid_cash: newPaidCash,
+        paid_in_bank: newPaidInBank,
+      })
+      .where('id', '=', currentPayment.ticket_id)
+      .execute();
+
+    return {
+      status: 'success',
+      code: 200,
+      message: 'Payment updated successfully',
+      payment: updatedPayment,
+    };
+  } catch (error) {
+    console.error('Error in updatePayment service:', error);
+    return {
+      status: 'error',
+      code: 500,
+      message: 'Failed to update payment',
+      errors: error.message,
+    };
+  }
+};
+
+export const deletePayment = async (paymentId: number, db: any) => {
+  try {
+    // Get the payment record to reverse the amounts
+    const paymentRecord = await db
+      .selectFrom('ticket_payments')
+      .selectAll()
+      .where('id', '=', paymentId)
+      .executeTakeFirst();
+
+    if (!paymentRecord) {
+      return {
+        status: 'error',
+        code: 404,
+        message: 'Payment not found',
+      };
+    }
+
+    const cashAmount = parseFloat(paymentRecord.payed_cash) || 0;
+    const bankAmount = parseFloat(paymentRecord.paid_bank) || 0;
+
+    // Get current ticket data
+    const currentTicket = await db
+      .selectFrom('ticket')
+      .select(['remaining_amount', 'paid_cash', 'paid_in_bank'])
+      .where('id', '=', paymentRecord.ticket_id)
+      .executeTakeFirst();
+
+    if (!currentTicket) {
+      return {
+        status: 'error',
+        code: 404,
+        message: 'Ticket not found',
+      };
+    }
+
+    // Reverse the payment amounts
+    const newRemainingAmount = parseFloat(currentTicket.remaining_amount) + cashAmount + bankAmount;
+    const newPaidCash = parseFloat(currentTicket.paid_cash) - cashAmount;
+    const newPaidInBank = parseFloat(currentTicket.paid_in_bank) - bankAmount;
+
+    // Delete the payment record
+    const deletedPayment = await db
+      .deleteFrom('ticket_payments')
+      .where('id', '=', paymentId)
+      .returningAll()
+      .executeTakeFirst();
+
+    // Update the ticket amounts
+    await db
+      .updateTable('ticket')
+      .set({
+        remaining_amount: newRemainingAmount,
+        paid_cash: newPaidCash,
+        paid_in_bank: newPaidInBank,
+      })
+      .where('id', '=', paymentRecord.ticket_id)
+      .execute();
+
+    return {
+      status: 'success',
+      code: 200,
+      message: 'Payment deleted successfully and ticket amounts updated',
+      payment: deletedPayment,
+    };
+  } catch (error) {
+    console.error('Error in deletePayment service:', error);
+    return {
+      status: 'error',
+      code: 500,
+      message: 'Failed to delete payment',
+      errors: error.message,
+    };
+  }
+};

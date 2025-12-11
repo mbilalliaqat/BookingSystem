@@ -478,10 +478,15 @@ app.delete('/umrah/:id', async (c) => {
   try {
     const id = Number(c.req.param('id'));
     
-    // Access database from global environment
     let db = globalThis.env.DB;
 
-    // Delete Umrah booking from database
+    // First, delete all related payments
+    await db
+      .deleteFrom('umrah_payments')
+      .where('umrah_id', '=', id)
+      .execute();
+
+    // Then delete the Umrah booking
     const deletedUmrah = await db
       .deleteFrom('Umrah')
       .where('id', '=', id)
