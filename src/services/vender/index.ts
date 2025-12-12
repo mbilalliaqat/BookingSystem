@@ -32,10 +32,10 @@ export const createVendor = async (body: any, db: any) => {
 
     // Detect if this is an Opening Balance entry
     // Opening balance entries can have credit/debit = 0 (or null)
-    const isOpeningBalance = (credit === 0 && debit === 0) && (body.balance !== undefined || body.balance === 0);
+const isOpeningBalance = (credit === 0 && debit === 0) && (body.balance !== undefined || body.balance === 0);
 
     // Validation for normal transactions (not opening balance)
-    if (!isOpeningBalance) {
+    if (!isOpeningBalance && credit === 0 && debit === 0) {
       if (credit === 0 && debit === 0) {
         return {
           status: 'error',

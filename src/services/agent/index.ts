@@ -3,7 +3,6 @@ import { incrementEntryCounts } from "../counters";
 export const createAgent = async (body: any, db: any) => {
   try {
     const [currentEntryNumber] = body.entry.split('/').map(Number);
-    
     if (!body.agent_name) {
       return {
         status: 'error',
@@ -12,31 +11,37 @@ export const createAgent = async (body: any, db: any) => {
       };
     }
 
-  
+    // Initialize credit, debit, and receivable amount
     let credit = 0;
     let debit = 0;
-    let receivableAmount =0;
+    let receivableAmount = 0;
 
-    if (body.credit !== undefined && body.credit !== null && body.credit !== '') {
+    // Parse credit value (allowing 0)
+    if (body.credit !== undefined && body.credit !== null) {
       const creditValue = Number(body.credit);
-      if (!isNaN(creditValue) && creditValue > 0) {
-        credit = creditValue;
+      if (!isNaN(creditValue)) {
+        credit = creditValue; // Allow 0 or other valid credit amounts
       }
     }
 
-     if (body.receivable_amount !== undefined && body.receivable_amount !== null && body.receivable_amount !== '') {
+    // Parse receivable amount (allowing 0 or positive values)
+    if (body.receivable_amount !== undefined && body.receivable_amount !== null) {
       const receivableValue = Number(body.receivable_amount);
       if (!isNaN(receivableValue) && receivableValue >= 0) {
         receivableAmount = receivableValue;
       }
     }
-    
-    if (body.debit !== undefined && body.debit !== null && body.debit !== '') {
+
+    // Parse debit value (allowing 0)
+    if (body.debit !== undefined && body.debit !== null) {
       const debitValue = Number(body.debit);
-      if (!isNaN(debitValue) && debitValue > 0) {
-        debit = debitValue;
+      if (!isNaN(debitValue)) {
+        debit = debitValue; // Allow 0 or other valid debit amounts
       }
     }
+
+    // Additional validation can be added for specific conditions (if needed)
+   
 
     // Parse and validate paid_cash/paid_bank values
     let paidCash = 0;
@@ -56,23 +61,9 @@ export const createAgent = async (body: any, db: any) => {
       }
     }
 
-    // Prevent both credit and debit in same transaction
-    if (credit > 0 && debit > 0) {
-      return {
-        status: 'error',
-        code: 400,
-        message: 'Cannot have both credit and debit in the same transaction'
-      };
-    }
-
+    
     // At least one of credit or debit should be provided
-    if (credit === 0 && debit === 0) {
-      return {
-        status: 'error',
-        code: 400,
-        message: 'Either credit or debit amount is required'
-      };
-    }
+    
 
     // Get the current balance for this agent by recalculating from all entries
     const currentBalance = await calculateCurrentBalance(body.agent_name, db);
@@ -93,7 +84,7 @@ export const createAgent = async (body: any, db: any) => {
         debit: debit > 0 ? debit : null,
         paid_cash: paidCash > 0 ? paidCash : null,
         paid_bank: paidBank > 0 ? paidBank : null,
-         receivable_amount: receivableAmount > 0 ? receivableAmount : null,
+        receivable_amount: receivableAmount > 0 ? receivableAmount : null,
         balance: newBalance
       })
       .returningAll()
