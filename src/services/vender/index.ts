@@ -31,11 +31,12 @@ export const createVendor = async (body: any, db: any) => {
     }
 
     // Detect if this is an Opening Balance entry
-    // Opening balance entries can have credit/debit = 0 (or null)
-const isOpeningBalance = (credit === 0 && debit === 0) && (body.balance !== undefined || body.balance === 0);
+    // Opening balance entries should have bank_title empty/null
+    const isOpeningBalance = !body.bank_title || body.bank_title.trim() === '';
 
     // Validation for normal transactions (not opening balance)
-    if (!isOpeningBalance && credit === 0 && debit === 0) {
+    if (!isOpeningBalance) {
+      // For normal transactions, at least one of credit or debit should be greater than 0
       if (credit === 0 && debit === 0) {
         return {
           status: 'error',
@@ -44,6 +45,7 @@ const isOpeningBalance = (credit === 0 && debit === 0) && (body.balance !== unde
         };
       }
 
+      // Cannot have both credit and debit in the same transaction
       if (credit > 0 && debit > 0) {
         return {
           status: 'error',
@@ -59,11 +61,8 @@ const isOpeningBalance = (credit === 0 && debit === 0) && (body.balance !== unde
     // Calculate new balance
     let newBalance = currentBalance + credit - debit;
 
-    // If it's an opening balance entry, use the provided balance directly
-    if (isOpeningBalance) {
-      const openingBalance = parseFloat(body.balance) || 0;
-      newBalance = openingBalance; // override with opening balance value
-    }
+    // If it's an opening balance entry, the balance is determined by credit/debit
+    // Opening balance can be 0, positive (credit), or negative (handled as debit)
 
     // Insert the new vendor transaction
     const newVendor = await db
