@@ -48,6 +48,7 @@ export const createVisaProcessing = async (body: any, db: any) => {
         booking_date: formatDateForDB(body.booking_date),
         remaining_date: formatDateForDB(body.remaining_date),
         detail: body.detail || null,
+        mobile_no: body.mobile_no || null,
         created_at: now
       })
       .returningAll()
@@ -118,6 +119,7 @@ export const updateVisaProcessing = async (id: number, body: any, db: any) => {
         detail: body.detail,
         booking_date: formatDateForDB(body.booking_date),
         remaining_date: formatDateForDB(body.remaining_date),
+        mobile_no: body.mobile_no || null,
         updated_at: new Date()
       })
       .where('id', '=', id)

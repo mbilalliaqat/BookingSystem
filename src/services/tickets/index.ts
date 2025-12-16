@@ -10,6 +10,8 @@ const formatDateForDB = (dateStr: string | null | undefined): string | null => {
 
 export const createTicket = async (body: any, db: any) => {
   try {
+
+
     const now = new Date();
     const [currentEntryNumber] = body.entry.split('/').map(Number); // Extract current entry number
 
@@ -24,6 +26,7 @@ export const createTicket = async (body: any, db: any) => {
         return_date: formatDateForDB(body.return_date), // Convert empty string to null
         sector: body.sector,
         airline: body.airline,
+        airline_select: body.airline_select || null, 
         adults: body.adults,
         children: body.children,
         infants: body.infants,
@@ -41,10 +44,14 @@ export const createTicket = async (body: any, db: any) => {
         remaining_amount: body.remaining_amount || 0,
         booking_date: body.booking_date,
         remaining_date: formatDateForDB(body.remaining_date),
+        initial_remaining_amount: body.receivable_amount - (body.paid_cash || 0) - (body.paid_in_bank || 0),
         created_at: now,
-      })
+      }
+    )
       .returningAll()
       .executeTakeFirst();
+
+      
 
     if (newTicket) {
       await incrementEntryCounts('ticket', currentEntryNumber, db); 
@@ -86,6 +93,7 @@ export const updateTicket = async (id: number, body: any, db: any) => {
         return_date: formatDateForDB(body.return_date), // Convert empty string to null
         sector: body.sector,
         airline: body.airline,
+        airline_select: body.airline_select || null,
         adults: body.adults, 
         children: body.children, 
         infants: body.infants,
@@ -103,6 +111,8 @@ export const updateTicket = async (id: number, body: any, db: any) => {
         remaining_amount: body.remaining_amount || 0,
         booking_date: body.booking_date,
         remaining_date: formatDateForDB(body.remaining_date),
+        initial_remaining_amount: currentTicket?.initial_remaining_amount || (body.receivable_amount - (body.paid_cash || 0) - (body.paid_in_bank || 0)),
+        
         created_at: now,
       })
       .where('id', '=', id)
