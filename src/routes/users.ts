@@ -329,6 +329,8 @@ app.post('/umrah', async (c) => {
         booking_date: body.booking_date,
         initial_paid_cash: body.paidCash || 0,
         initial_paid_in_bank: body.paidInBank || 0,
+        initial_remaining_amount: body.receivable_amount - (body.paid_cash || 0) - (body.paid_in_bank || 0),
+
         createdAt: now,
         updatedAt: now
       })
@@ -436,6 +438,8 @@ app.put('/umrah/:id', async (c) => {
         // Preserve initial values or set them if they don't exist
         initial_paid_cash: currentUmrah?.initial_paid_cash || body.paidCash || 0,
         initial_paid_in_bank: currentUmrah?.initial_paid_in_bank || body.paidInBank || 0,
+        initial_remaining_amount: currentUmrah?.initial_remaining_amount || (body.receivable_amount - (body.paid_cash || 0) - (body.paid_in_bank || 0)),
+
         updatedAt: now
       })
       .where('id', '=', id)

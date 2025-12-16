@@ -140,6 +140,8 @@ export const createGamcaToken = async (body: any, db: any) => {
         remaining_amount: body.remaining_amount || body.receivable_amount || 0,
         initial_paid_cash: body.paid_cash || 0,
         initial_paid_in_bank: body.paid_in_bank || 0,
+        initial_remaining_amount: body.receivable_amount - (body.paid_cash || 0) - (body.paid_in_bank || 0),
+
         created_at: now,
         updated_at: now,
       })
@@ -212,6 +214,7 @@ export const updateGamcaToken = async (id: number, body: any, db: any) => {
         // Preserve initial paid amounts (only set once on create)
         initial_paid_cash: current.initial_paid_cash ?? (body.paid_cash || 0),
         initial_paid_in_bank: current.initial_paid_in_bank ?? (body.paid_in_bank || 0),
+        initial_remaining_amount: current?.initial_remaining_amount || (body.receivable_amount - (body.paid_cash || 0) - (body.paid_in_bank || 0)),
         updated_at: now,
       })
       .where('id', '=', id)
