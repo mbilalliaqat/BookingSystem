@@ -19,6 +19,7 @@ export const createService = async (body: any, db: any) => {
         user_name: body.user_name,
         entry: body.entry,
         customer_add: body.customer_add,
+        status: body.status || 'Processing',
         booking_date: formatDateForDB(body.booking_date),
         remaining_date: formatDateForDB(body.remaining_date),
         specific_detail: body.specific_detail,
@@ -42,6 +43,7 @@ export const createService = async (body: any, db: any) => {
       console.log('Calling incrementEntryCounts for Service');
       await incrementEntryCounts("services", currentEntryNumber, db);
     }
+    
 
     return {
       status: "success",
@@ -70,6 +72,7 @@ export const updateService = async (id: number, body: any, db: any) => {
         user_name: body.user_name,
         entry: body.entry,
         customer_add: body.customer_add,
+        status: body.status || 'Processing',
         booking_date: formatDateForDB(body.booking_date),
         remaining_date: formatDateForDB(body.remaining_date),
         specific_detail: body.specific_detail,
