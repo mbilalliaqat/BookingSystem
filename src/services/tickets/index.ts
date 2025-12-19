@@ -147,7 +147,7 @@ export const updateTicket = async (id: number, body: any, db: any) => {
   }
 };
 
-export const deleteTicket = async (id: number, db: any) => {
+export const deleteTicket = async (id: number, db: any, deletedBy: string = 'system') => {
   try {
     // 1. Get ticket data
     const ticketRecord = await db
@@ -168,10 +168,14 @@ export const deleteTicket = async (id: number, db: any) => {
       .execute();
 
     // 3. Archive ticket with related data
-    await archiveRecord('ticket', id, {
+    const archiveResult = await archiveRecord('ticket', id, {
       ticket: ticketRecord,
       payments: payments
-    }, db);
+    }, db, deletedBy);
+
+    if (archiveResult.status !== 'success') {
+      return { status: 'error', code: 500, message: 'Failed to archive ticket', errors: archiveResult.message };
+    }
 
     // 4. Delete payments
     await db

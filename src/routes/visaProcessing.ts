@@ -98,21 +98,23 @@ app.get('/visa-processing', async (c) => {
   app.delete('/visa-processing/:id', async (c) => {
     try {
       const id = Number(c.req.param('id'));
-  
+      const deletedBy = c.req.header('X-User-Name') || 'system';
+
       // Call the deleteVisaProcessing service
-      const result = await deleteVisaProcessing(id, globalThis.env.DB);
-  
+      const result = await deleteVisaProcessing(id, globalThis.env.DB, deletedBy);
+
       // Return the result from the service
       return c.json(
         {
           status: result.status,
           message: result.message,
+          ...(result.errors && { errors: result.errors }),
         },
         result.code
       );
     } catch (error) {
       console.error('Error deleting visa processing record:', error);
-  
+
       return c.json(
         {
           status: 'error',

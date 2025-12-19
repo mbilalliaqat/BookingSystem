@@ -3,6 +3,7 @@ import {  loginUser, signupUser, getPendingUsers } from '../services/users';
 import { checkLogin, adminOnly } from '../middlewares';
 import { incrementEntryCounts,getEntryCounts  } from '../services/counters';
 import { createUmrahPayment, getUmrahPaymentsByUmrahId, updateUmrahPayment, deleteUmrahPayment } from '../services/umrahPayment';
+import { deleteUmrah } from '../services/umrah';
 
 
 
@@ -486,48 +487,25 @@ app.put('/umrah/:id', async (c) => {
 app.delete('/umrah/:id', async (c) => {
   try {
     const id = Number(c.req.param('id'));
-    
-    let db = globalThis.env.DB;
+    const deletedBy = c.req.header('X-User-Name') || 'system';
 
-    // First, delete all related payments
-    await db
-      .deleteFrom('umrah_payments')
-      .where('umrah_id', '=', id)
-      .execute();
-
-    // Then delete the Umrah booking
-    const deletedUmrah = await db
-      .deleteFrom('Umrah')
-      .where('id', '=', id)
-      .returningAll()
-      .executeTakeFirst();
-
-    if (!deletedUmrah) {
-      return c.json(
-        {
-          status: 'error',
-          message: 'Umrah booking not found'
-        },
-        404
-      );
-    }
+    const result = await deleteUmrah(id, globalThis.env.DB, deletedBy);
 
     return c.json(
       {
-        status: 'success',
-        message: 'Umrah Booking deleted successfully',
-        umrah: deletedUmrah
+        status: result.status,
+        message: result.message,
+        ...(result.umrah && { umrah: result.umrah }),
+        ...(result.errors && { errors: result.errors }),
       },
-      200
+      result.code
     );
   } catch (error) {
-    console.error('Error deleting umrah booking:', error);
-
+    console.error('Error deleting umrah:', error);
     return c.json(
       {
         status: 'error',
-        message: 'Failed to delete umrah booking',
-        details: error.message
+        message: 'Failed to delete umrah',
       },
       500
     );
@@ -612,6 +590,6 @@ app.delete('/umrah/payment/:id', async (c) => {
   }
 });
 
-
+  
 
 

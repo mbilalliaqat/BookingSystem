@@ -238,7 +238,7 @@ export const createVisaPayment = async (body: any, db: any) => {
   }
 };
 
-export const deleteVisaProcessing = async (id: number, db: any) => {
+export const deleteVisaProcessing = async (id: number, db: any, deletedBy: string = 'system') => {
   try {
     const visaProcessingRecord = await db
       .selectFrom('visa_processing')
@@ -252,6 +252,23 @@ export const deleteVisaProcessing = async (id: number, db: any) => {
         code: 404,
         message: 'Visa processing record not found'
       };
+    }
+
+    // Get related payments
+    const payments = await db
+      .selectFrom('visa_processing_payments')
+      .selectAll()
+      .where('visa_processing_id', '=', id)
+      .execute();
+
+    // Archive visa processing with related payments
+    const archiveResult = await archiveRecord('visa_processing', id, {
+      visa_processing: visaProcessingRecord,
+      payments: payments
+    }, db, deletedBy);
+
+    if (archiveResult.status !== 'success') {
+      return { status: 'error', code: 500, message: 'Failed to archive visa processing', errors: archiveResult.message };
     }
 
     const deletedPayments = await db
@@ -270,7 +287,7 @@ export const deleteVisaProcessing = async (id: number, db: any) => {
     return {
       status: 'success',
       code: 200,
-      message: `Visa processing record deleted successfully${deletedPayments.length > 0 ? ` along with ${deletedPayments.length} related payment records` : ''}`
+      message: `Visa processing record archived and deleted successfully${deletedPayments.length > 0 ? ` along with ${deletedPayments.length} related payment records` : ''}`
     };
   } catch (error) {
     console.error('Error in deleteVisaProcessing service:', error);
