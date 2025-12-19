@@ -72,7 +72,7 @@ export const createVisaProcessing = async (body: any, db: any) => {
       status: 'error',
       code: 500,
       message: 'Failed to create visa processing entry',
-      errors: error.message
+      errors: (error as any).message
     };
   }
 };
@@ -150,7 +150,7 @@ export const updateVisaProcessing = async (id: number, body: any, db: any) => {
       status: 'error',
       code: 500,
       message: 'Failed to update visa processing record',
-      errors: error.message
+      errors: (error as any).message
     };
   }
 };
@@ -233,7 +233,7 @@ export const createVisaPayment = async (body: any, db: any) => {
       status: 'error',
       code: 500,
       message: 'Failed to record payment or update visa processing record',
-      errors: error.message,
+      errors: (error as any).message,
     };
   }
 };
@@ -278,7 +278,7 @@ export const deleteVisaProcessing = async (id: number, db: any) => {
       status: 'error',
       code: 500,
       message: 'Failed to delete visa processing record',
-      errors: error.message
+      errors: (error as any).message
     };
   }
 };
@@ -313,7 +313,161 @@ export const getVisaPaymentsByProcessingId = async (visaProcessingId: number, db
       status: 'error',
       code: 500,
       message: 'Failed to fetch payments',
-      errors: error.message,
+      errors: (error as any).message,
+    };
+  }
+};
+
+export const updateVisaPayment = async (paymentId: number, body: any, db: any) => {
+  try {
+    const currentPayment = await db
+      .selectFrom('visa_processing_payments')
+      .selectAll()
+      .where('id', '=', paymentId)
+      .executeTakeFirst();
+
+    if (!currentPayment) {
+      return {
+        status: 'error',
+        code: 404,
+        message: 'Payment not found',
+      };
+    }
+
+    const oldCashAmount = parseFloat(currentPayment.payed_cash) || 0;
+    const oldBankAmount = parseFloat(currentPayment.paid_bank) || 0;
+    const newCashAmount = parseFloat(body.payed_cash) || 0;
+    const newBankAmount = parseFloat(body.paid_bank) || 0;
+
+    const cashDifference = newCashAmount - oldCashAmount;
+    const bankDifference = newBankAmount - oldBankAmount;
+    const totalDifference = cashDifference + bankDifference;
+
+    const currentVisaProcessing = await db
+      .selectFrom('visa_processing')
+      .select(['remaining_amount', 'paid_cash', 'paid_in_bank'])
+      .where('id', '=', currentPayment.visa_processing_id)
+      .executeTakeFirst();
+
+    if (!currentVisaProcessing) {
+      return {
+        status: 'error',
+        code: 404,
+        message: 'Visa processing record not found',
+      };
+    }
+
+    const newRemainingAmount = parseFloat(currentVisaProcessing.remaining_amount) - totalDifference;
+    const newPaidCash = parseFloat(currentVisaProcessing.paid_cash) + cashDifference;
+    const newPaidInBank = parseFloat(currentVisaProcessing.paid_in_bank) + bankDifference;
+
+    const updatedPayment = await db
+      .updateTable('visa_processing_payments')
+      .set({
+        payment_date: formatDateForDB(body.payment_date),
+        payed_cash: newCashAmount.toString(),
+        paid_bank: newBankAmount.toString(),
+        bank_title: body.bank_title || null,
+        recorded_by: body.recorded_by,
+        remaining_amount: newRemainingAmount.toString(),
+      })
+      .where('id', '=', paymentId)
+      .returningAll()
+      .executeTakeFirst();
+
+    await db
+      .updateTable('visa_processing')
+      .set({
+        remaining_amount: newRemainingAmount,
+        paid_cash: newPaidCash,
+        paid_in_bank: newPaidInBank,
+      })
+      .where('id', '=', currentPayment.visa_processing_id)
+      .execute();
+
+    return {
+      status: 'success',
+      code: 200,
+      message: 'Payment updated successfully',
+      payment: updatedPayment,
+    };
+  } catch (error) {
+    console.error('Error in updateVisaPayment service:', error);
+    return {
+      status: 'error',
+      code: 500,
+      message: 'Failed to update payment',
+      errors: (error as any).message,
+    };
+  }
+};
+
+export const deleteVisaPayment = async (paymentId: number, db: any) => {
+  try {
+    const paymentRecord = await db
+      .selectFrom('visa_processing_payments')
+      .selectAll()
+      .where('id', '=', paymentId)
+      .executeTakeFirst();
+
+    if (!paymentRecord) {
+      return {
+        status: 'error',
+        code: 404,
+        message: 'Payment not found',
+      };
+    }
+
+    const cashAmount = parseFloat(paymentRecord.payed_cash) || 0;
+    const bankAmount = parseFloat(paymentRecord.paid_bank) || 0;
+
+    const currentVisaProcessing = await db
+      .selectFrom('visa_processing')
+      .select(['remaining_amount', 'paid_cash', 'paid_in_bank'])
+      .where('id', '=', paymentRecord.visa_processing_id)
+      .executeTakeFirst();
+
+    if (!currentVisaProcessing) {
+      return {
+        status: 'error',
+        code: 404,
+        message: 'Visa processing record not found',
+      };
+    }
+
+    const newRemainingAmount = parseFloat(currentVisaProcessing.remaining_amount) + cashAmount + bankAmount;
+    const newPaidCash = parseFloat(currentVisaProcessing.paid_cash) - cashAmount;
+    const newPaidInBank = parseFloat(currentVisaProcessing.paid_in_bank) - bankAmount;
+
+    const deletedPayment = await db
+      .deleteFrom('visa_processing_payments')
+      .where('id', '=', paymentId)
+      .returningAll()
+      .executeTakeFirst();
+
+    await db
+      .updateTable('visa_processing')
+      .set({
+        remaining_amount: newRemainingAmount,
+        paid_cash: newPaidCash,
+        paid_in_bank: newPaidInBank,
+      })
+      .where('id', '=', paymentRecord.visa_processing_id)
+      .execute();
+
+    return {
+      status: 'success',
+      code: 200,
+      message: 'Payment deleted successfully and visa processing amounts updated',
+      payment: deletedPayment,
+    };
+  } catch (error) {
+    console.error('Error in deleteVisaPayment service:', error);
+    return {
+      status: 'error',
+      code: 500,
+      message: 'Failed to delete payment',
+      errors: (error as any).message,
     };
   }
 };

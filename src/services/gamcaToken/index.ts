@@ -108,6 +108,162 @@ export const getGamcaTokenPaymentsByTokenId = async (gamcaTokenId: number, db: a
   }
 };
 
+export const updateGamcaTokenPayment = async (paymentId: number, body: any, db: any) => {
+  try {
+    const currentPayment = await db
+      .selectFrom('gamca_token_payments')
+      .selectAll()
+      .where('id', '=', paymentId)
+      .executeTakeFirst();
+
+    if (!currentPayment) {
+      return {
+        status: 'error',
+        code: 404,
+        message: 'Payment not found',
+      };
+    }
+
+    const oldCash = parseFloat(currentPayment.paid_cash) || 0;
+    const oldBank = parseFloat(currentPayment.paid_in_bank) || 0;
+    const newCash = parseFloat(body.paid_cash) || 0;
+    const newBank = parseFloat(body.paid_in_bank) || 0;
+
+    const cashDiff = newCash - oldCash;
+    const bankDiff = newBank - oldBank;
+    const totalDiff = cashDiff + bankDiff;
+
+    const currentToken = await db
+      .selectFrom('gamca_token')
+      .select(['remaining_amount', 'paid_cash', 'paid_in_bank'])
+      .where('id', '=', currentPayment.gamca_token_id)
+      .executeTakeFirst();
+
+    if (!currentToken) {
+      return {
+        status: 'error',
+        code: 404,
+        message: 'GAMCA token not found',
+      };
+    }
+
+    const newRemaining = parseFloat(currentToken.remaining_amount) - totalDiff;
+    const newPaidCash = parseFloat(currentToken.paid_cash) + cashDiff;
+    const newPaidInBank = parseFloat(currentToken.paid_in_bank) + bankDiff;
+
+    const updatedPayment = await db
+      .updateTable('gamca_token_payments')
+      .set({
+        payment_date: formatDateForDB(body.payment_date),
+        paid_cash: newCash,
+        paid_in_bank: newBank,
+        bank_title: body.bank_title || null,
+        recorded_by: body.recorded_by,
+        remaining_amount: newRemaining,
+      })
+      .where('id', '=', paymentId)
+      .returningAll()
+      .executeTakeFirst();
+
+    await db
+      .updateTable('gamca_token')
+      .set({
+        remaining_amount: newRemaining,
+        paid_cash: newPaidCash,
+        paid_in_bank: newPaidInBank,
+        updated_at: new Date(),
+      })
+      .where('id', '=', currentPayment.gamca_token_id)
+      .execute();
+
+    return {
+      status: 'success',
+      code: 200,
+      message: 'Payment updated successfully',
+      payment: updatedPayment,
+    };
+  } catch (error: any) {
+    console.error('Error in updateGamcaTokenPayment:', error);
+    return {
+      status: 'error',
+      code: 500,
+      message: 'Failed to update payment',
+      errors: error.message,
+    };
+  }
+};
+
+export const deleteGamcaTokenPayment = async (paymentId: number, db: any) => {
+  try {
+    const paymentRecord = await db
+      .selectFrom('gamca_token_payments')
+      .selectAll()
+      .where('id', '=', paymentId)
+      .executeTakeFirst();
+
+    if (!paymentRecord) {
+      return {
+        status: 'error',
+        code: 404,
+        message: 'Payment not found',
+      };
+    }
+
+    const cashAmount = parseFloat(paymentRecord.paid_cash) || 0;
+    const bankAmount = parseFloat(paymentRecord.paid_in_bank) || 0;
+
+    const currentToken = await db
+      .selectFrom('gamca_token')
+      .select(['remaining_amount', 'paid_cash', 'paid_in_bank'])
+      .where('id', '=', paymentRecord.gamca_token_id)
+      .executeTakeFirst();
+
+    if (!currentToken) {
+      return {
+        status: 'error',
+        code: 404,
+        message: 'GAMCA token not found',
+      };
+    }
+
+    const newRemaining = parseFloat(currentToken.remaining_amount) + cashAmount + bankAmount;
+    const newPaidCash = parseFloat(currentToken.paid_cash) - cashAmount;
+    const newPaidInBank = parseFloat(currentToken.paid_in_bank) - bankAmount;
+
+    const deletedPayment = await db
+      .deleteFrom('gamca_token_payments')
+      .where('id', '=', paymentId)
+      .returningAll()
+      .executeTakeFirst();
+
+    await db
+      .updateTable('gamca_token')
+      .set({
+        remaining_amount: newRemaining,
+        paid_cash: newPaidCash,
+        paid_in_bank: newPaidInBank,
+        updated_at: new Date(),
+      })
+      .where('id', '=', paymentRecord.gamca_token_id)
+      .execute();
+
+    return {
+      status: 'success',
+      code: 200,
+      message: 'Payment deleted successfully and GAMCA token updated',
+      payment: deletedPayment,
+    };
+  } catch (error: any) {
+    console.error('Error in deleteGamcaTokenPayment:', error);
+    return {
+      status: 'error',
+      code: 500,
+      message: 'Failed to delete payment',
+      errors: error.message,
+    };
+  }
+};
+
 export const createGamcaToken = async (body: any, db: any) => {
   try {
     const now = new Date();

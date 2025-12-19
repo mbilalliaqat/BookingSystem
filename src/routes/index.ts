@@ -18,6 +18,7 @@ import './payments'
 import './umrahPayment'
 import './visaPayment'
 import './GamcaPayment'
+import './archive'
 
 
 

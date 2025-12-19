@@ -1,5 +1,5 @@
 import app from '../app';
-import { createGamcaToken, updateGamcaToken, deleteGamcaToken, createGamcaTokenPayment, getGamcaTokenPaymentsByTokenId } from '../services/gamcaToken';
+import {  createGamcaTokenPayment, getGamcaTokenPaymentsByTokenId, updateGamcaTokenPayment, deleteGamcaTokenPayment } from '../services/gamcaToken';
 
 // Route to create payment for a specific GAMCA token record
 app.post('/gamca-token/:id/payments', async (c) => {
@@ -140,5 +140,56 @@ app.get('/gamca_token_payments/:gamcaTokenId', async (c) => {
       },
       500
     );
+  }
+});
+
+// Update a GAMCA token payment
+app.put('/gamca-token/payment/:id', async (c) => {
+  try {
+    const paymentId = Number(c.req.param('id'));
+    if (isNaN(paymentId)) {
+      return c.json({ status: 'error', code: 400, message: 'Invalid payment ID' }, 400);
+    }
+
+    const body = await c.req.json();
+    const result = await updateGamcaTokenPayment(paymentId, body, globalThis.env.DB);
+
+    return c.json(
+      {
+        status: result.status,
+        message: result.message,
+        ...(result.payment && { payment: result.payment }),
+        ...(result.errors && { errors: result.errors }),
+      },
+      result.code
+    );
+  } catch (error) {
+    console.error('Error updating GAMCA token payment:', error);
+    return c.json({ status: 'error', message: 'Failed to update GAMCA token payment' }, 500);
+  }
+});
+
+// Delete a GAMCA token payment
+app.delete('/gamca-token/payment/:id', async (c) => {
+  try {
+    const paymentId = Number(c.req.param('id'));
+    if (isNaN(paymentId)) {
+      return c.json({ status: 'error', code: 400, message: 'Invalid payment ID' }, 400);
+    }
+
+    const result = await deleteGamcaTokenPayment(paymentId, globalThis.env.DB);
+
+    return c.json(
+      {
+        status: result.status,
+        message: result.message,
+        ...(result.payment && { payment: result.payment }),
+        ...(result.errors && { errors: result.errors }),
+      },
+      result.code
+    );
+  } catch (error) {
+    console.error('Error deleting GAMCA token payment:', error);
+    return c.json({ status: 'error', message: 'Failed to delete GAMCA token payment' }, 500);
   }
 });

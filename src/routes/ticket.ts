@@ -99,35 +99,34 @@ app.post('/ticket', async (c) => {
     }
   });
 
-  app.delete('/ticket/:id', async (c) => {
-    try {
-      const id = Number(c.req.param('id'));
-  
-      // Call the delete ticket service
-      const result = await deleteTicket (id, globalThis.env.DB);
-  
-      // Return the result from the service
-      return c.json(
-        {
-          status: result.status,
-          message: result.message,
-          ...(result.ticket && { ticket: result.ticket }),
-          ...(result.errors && { errors: result.errors }),
-        },
-        result.code
-      );
-    } catch (error) {
-      console.error('Error deleting ticket:', error);
-  
-      return c.json(
-        {
-          status: 'error',
-          message: 'Failed to delete ticket',
-        },
-        500
-      );
-    }
-  });
+  // ticket.ts - UPDATE delete route
+app.delete('/ticket/:id', async (c) => {
+  try {
+    const id = Number(c.req.param('id'));
+    const deletedBy = c.req.header('X-User-Name') || 'system'; // Get user from header
+
+    const result = await deleteTicket(id, globalThis.env.DB, deletedBy);
+
+    return c.json(
+      {
+        status: result.status,
+        message: result.message,
+        ...(result.ticket && { ticket: result.ticket }),
+        ...(result.errors && { errors: result.errors }),
+      },
+      result.code
+    );
+  } catch (error) {
+    console.error('Error deleting ticket:', error);
+    return c.json(
+      {
+        status: 'error',
+        message: 'Failed to delete ticket',
+      },
+      500
+    );
+  }
+});
 
   app.post('/ticket/:id/payments', async (c) => {
   try {

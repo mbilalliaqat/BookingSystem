@@ -1,5 +1,5 @@
 import app from '../app';
-import { createVisaProcessing, updateVisaProcessing, deleteVisaProcessing } from '../services/visaProcessing';
+import { createVisaProcessing, updateVisaProcessing, deleteVisaProcessing, createVisaPayment, getVisaPaymentsByProcessingId, updateVisaPayment, deleteVisaPayment } from '../services/visaProcessing';
 
 app.post('/visa-processing', async (c) => {
   try {
@@ -122,3 +122,81 @@ app.get('/visa-processing', async (c) => {
       );
     }
   });
+
+// Visa processing payment routes
+app.post('/visa-processing/payment', async (c) => {
+  try {
+    const body = await c.req.json();
+    const result = await createVisaPayment(body, globalThis.env.DB);
+    return c.json(
+      {
+        status: result.status,
+        message: result.message,
+        ...(result.payment && { payment: result.payment }),
+        ...(result.visa_processing && { visa_processing: result.visa_processing }),
+        ...(result.errors && { errors: result.errors }),
+      },
+      result.code
+    );
+  } catch (error) {
+    console.error('Error creating visa payment:', error);
+    return c.json({ status: 'error', message: 'Failed to create visa payment' }, 500);
+  }
+});
+
+app.get('/visa-processing/:id/payments', async (c) => {
+  try {
+    const id = Number(c.req.param('id'));
+    const result = await getVisaPaymentsByProcessingId(id, globalThis.env.DB);
+    return c.json(
+      {
+        status: result.status,
+        message: result.message,
+        payments: result.payments,
+      },
+      result.code
+    );
+  } catch (error) {
+    console.error('Error fetching visa payments:', error);
+    return c.json({ status: 'error', message: 'Failed to fetch visa payments' }, 500);
+  }
+});
+
+app.put('/visa-processing/payment/:id', async (c) => {
+  try {
+    const paymentId = Number(c.req.param('id'));
+    const body = await c.req.json();
+    const result = await updateVisaPayment(paymentId, body, globalThis.env.DB);
+    return c.json(
+      {
+        status: result.status,
+        message: result.message,
+        ...(result.payment && { payment: result.payment }),
+        ...(result.errors && { errors: result.errors }),
+      },
+      result.code
+    );
+  } catch (error) {
+    console.error('Error updating visa payment:', error);
+    return c.json({ status: 'error', message: 'Failed to update visa payment' }, 500);
+  }
+});
+
+app.delete('/visa-processing/payment/:id', async (c) => {
+  try {
+    const paymentId = Number(c.req.param('id'));
+    const result = await deleteVisaPayment(paymentId, globalThis.env.DB);
+    return c.json(
+      {
+        status: result.status,
+        message: result.message,
+        ...(result.payment && { payment: result.payment }),
+        ...(result.errors && { errors: result.errors }),
+      },
+      result.code
+    );
+  } catch (error) {
+    console.error('Error deleting visa payment:', error);
+    return c.json({ status: 'error', message: 'Failed to delete visa payment' }, 500);
+  }
+});

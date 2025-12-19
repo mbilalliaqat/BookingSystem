@@ -1,4 +1,5 @@
 import { incrementEntryCounts  } from "../counters";
+import { archiveRecord } from '../archive';
 
 // Helper function to convert empty strings to null for date fields
 const formatDateForDB = (dateStr: string | null | undefined): string | null => {
@@ -146,10 +147,9 @@ export const updateTicket = async (id: number, body: any, db: any) => {
   }
 };
 
-// Fixed deleteTicket function in tickets/index.ts
 export const deleteTicket = async (id: number, db: any) => {
   try {
-    // First, check if the ticket exists
+    // 1. Get ticket data
     const ticketRecord = await db
       .selectFrom('ticket')
       .selectAll()
@@ -157,22 +157,29 @@ export const deleteTicket = async (id: number, db: any) => {
       .executeTakeFirst();
 
     if (!ticketRecord) {
-      return {
-        status: 'error',
-        code: 404,
-        message: 'Ticket not found'
-      };
+      return { status: 'error', code: 404, message: 'Ticket not found' };
     }
 
-    // Delete all related payment records first to avoid foreign key constraint violation
-    const deletedPayments = await db
+    // 2. Get related payments
+    const payments = await db
+      .selectFrom('ticket_payments')
+      .selectAll()
+      .where('ticket_id', '=', id)
+      .execute();
+
+    // 3. Archive ticket with related data
+    await archiveRecord('ticket', id, {
+      ticket: ticketRecord,
+      payments: payments
+    }, db);
+
+    // 4. Delete payments
+    await db
       .deleteFrom('ticket_payments')
       .where('ticket_id', '=', id)
       .execute();
 
-    console.log(`Deleted ${deletedPayments.length || 0} related payment records for ticket ID: ${id}`);
-
-    // Now delete the main ticket record
+    // 5. Delete ticket
     const deletedTicket = await db
       .deleteFrom('ticket')
       .where('id', '=', id)
@@ -182,11 +189,10 @@ export const deleteTicket = async (id: number, db: any) => {
     return {
       status: 'success',
       code: 200,
-      message: `Ticket deleted successfully${deletedPayments.length > 0 ? ` along with ${deletedPayments.length} related payment records` : ''}`,
+      message: 'Ticket archived and deleted successfully',
       ticket: deletedTicket,
     };
   } catch (error) {
-    console.error("Error in deleteTicket service:", error);
     return {
       status: 'error',
       code: 500,
@@ -472,3 +478,7 @@ export const deletePayment = async (paymentId: number, db: any) => {
     };
   }
 };
+
+// tickets/index.ts
+
+

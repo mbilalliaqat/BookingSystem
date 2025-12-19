@@ -2,6 +2,7 @@ import app from '../app';
 import {  loginUser, signupUser, getPendingUsers } from '../services/users';
 import { checkLogin, adminOnly } from '../middlewares';
 import { incrementEntryCounts,getEntryCounts  } from '../services/counters';
+import { createUmrahPayment, getUmrahPaymentsByUmrahId, updateUmrahPayment, deleteUmrahPayment } from '../services/umrahPayment';
 
 
 
@@ -530,6 +531,84 @@ app.delete('/umrah/:id', async (c) => {
       },
       500
     );
+  }
+});
+
+// Umrah payment routes
+app.post('/umrah/payment', async (c) => {
+  try {
+    const body = await c.req.json();
+    const result = await createUmrahPayment(body, globalThis.env.DB);
+    return c.json(
+      {
+        status: result.status,
+        message: result.message,
+        ...(result.payment && { payment: result.payment }),
+        ...(result.umrah && { umrah: result.umrah }),
+        ...(result.errors && { errors: result.errors }),
+      },
+      result.code
+    );
+  } catch (error) {
+    console.error('Error creating umrah payment:', error);
+    return c.json({ status: 'error', message: 'Failed to create umrah payment' }, 500);
+  }
+});
+
+app.get('/umrah/:id/payments', async (c) => {
+  try {
+    const umrahId = Number(c.req.param('id'));
+    const result = await getUmrahPaymentsByUmrahId(umrahId, globalThis.env.DB);
+    return c.json(
+      {
+        status: result.status,
+        message: result.message,
+        payments: result.payments,
+      },
+      result.code
+    );
+  } catch (error) {
+    console.error('Error fetching umrah payments:', error);
+    return c.json({ status: 'error', message: 'Failed to fetch umrah payments' }, 500);
+  }
+});
+
+app.put('/umrah/payment/:id', async (c) => {
+  try {
+    const paymentId = Number(c.req.param('id'));
+    const body = await c.req.json();
+    const result = await updateUmrahPayment(paymentId, body, globalThis.env.DB);
+    return c.json(
+      {
+        status: result.status,
+        message: result.message,
+        ...(result.payment && { payment: result.payment }),
+        ...(result.errors && { errors: result.errors }),
+      },
+      result.code
+    );
+  } catch (error) {
+    console.error('Error updating umrah payment:', error);
+    return c.json({ status: 'error', message: 'Failed to update umrah payment' }, 500);
+  }
+});
+
+app.delete('/umrah/payment/:id', async (c) => {
+  try {
+    const paymentId = Number(c.req.param('id'));
+    const result = await deleteUmrahPayment(paymentId, globalThis.env.DB);
+    return c.json(
+      {
+        status: result.status,
+        message: result.message,
+        ...(result.payment && { payment: result.payment }),
+        ...(result.errors && { errors: result.errors }),
+      },
+      result.code
+    );
+  } catch (error) {
+    console.error('Error deleting umrah payment:', error);
+    return c.json({ status: 'error', message: 'Failed to delete umrah payment' }, 500);
   }
 });
 

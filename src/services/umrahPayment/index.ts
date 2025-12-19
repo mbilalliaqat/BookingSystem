@@ -119,3 +119,166 @@ export const getUmrahPaymentsByUmrahId = async (umrahId: number, db: any) => {
     };
   }
 };
+
+export const updateUmrahPayment = async (paymentId: number, body: any, db: any) => {
+  try {
+    // Get the current payment to calculate differences
+    const currentPayment = await db
+      .selectFrom('umrah_payments')
+      .selectAll()
+      .where('id', '=', paymentId)
+      .executeTakeFirst();
+
+    if (!currentPayment) {
+      return {
+        status: 'error',
+        code: 404,
+        message: 'Payment not found',
+      };
+    }
+
+    const oldCashAmount = parseFloat(currentPayment.payed_cash) || 0;
+    const oldBankAmount = parseFloat(currentPayment.paid_bank) || 0;
+    const newCashAmount = parseFloat(body.payed_cash) || 0;
+    const newBankAmount = parseFloat(body.paid_bank) || 0;
+
+    const cashDifference = newCashAmount - oldCashAmount;
+    const bankDifference = newBankAmount - oldBankAmount;
+    const totalDifference = cashDifference + bankDifference;
+
+    // Get current Umrah booking
+    const currentUmrah = await db
+      .selectFrom('Umrah')
+      .select(['remainingAmount', 'paidCash', 'paidInBank'])
+      .where('id', '=', currentPayment.umrah_id)
+      .executeTakeFirst();
+
+    if (!currentUmrah) {
+      return {
+        status: 'error',
+        code: 404,
+        message: 'Umrah booking not found',
+      };
+    }
+
+    const newRemainingAmount = parseFloat(currentUmrah.remainingAmount) - totalDifference;
+    const newPaidCash = parseFloat(currentUmrah.paidCash) + cashDifference;
+    const newPaidInBank = parseFloat(currentUmrah.paidInBank) + bankDifference;
+
+    // Update the payment record
+    const updatedPayment = await db
+      .updateTable('umrah_payments')
+      .set({
+        payment_date: formatDateForDB(body.payment_date),
+        payed_cash: newCashAmount.toString(),
+        paid_bank: newBankAmount.toString(),
+        bank_title: body.bank_title || null,
+        recorded_by: body.recorded_by,
+        remaining_amount: newRemainingAmount,
+      })
+      .where('id', '=', paymentId)
+      .returningAll()
+      .executeTakeFirst();
+
+    // Update the Umrah booking amounts
+    await db
+      .updateTable('Umrah')
+      .set({
+        remainingAmount: newRemainingAmount,
+        paidCash: newPaidCash,
+        paidInBank: newPaidInBank,
+      })
+      .where('id', '=', currentPayment.umrah_id)
+      .execute();
+
+    return {
+      status: 'success',
+      code: 200,
+      message: 'Payment updated successfully',
+      payment: updatedPayment,
+    };
+  } catch (error) {
+    console.error('Error in updateUmrahPayment service:', error);
+    return {
+      status: 'error',
+      code: 500,
+      message: 'Failed to update payment',
+      errors: error.message,
+    };
+  }
+};
+
+export const deleteUmrahPayment = async (paymentId: number, db: any) => {
+  try {
+    // Get the payment record to reverse the amounts
+    const paymentRecord = await db
+      .selectFrom('umrah_payments')
+      .selectAll()
+      .where('id', '=', paymentId)
+      .executeTakeFirst();
+
+    if (!paymentRecord) {
+      return {
+        status: 'error',
+        code: 404,
+        message: 'Payment not found',
+      };
+    }
+
+    const cashAmount = parseFloat(paymentRecord.payed_cash) || 0;
+    const bankAmount = parseFloat(paymentRecord.paid_bank) || 0;
+
+    // Get current Umrah booking
+    const currentUmrah = await db
+      .selectFrom('Umrah')
+      .select(['remainingAmount', 'paidCash', 'paidInBank'])
+      .where('id', '=', paymentRecord.umrah_id)
+      .executeTakeFirst();
+
+    if (!currentUmrah) {
+      return {
+        status: 'error',
+        code: 404,
+        message: 'Umrah booking not found',
+      };
+    }
+
+    // Reverse the payment amounts
+    const newRemainingAmount = parseFloat(currentUmrah.remainingAmount) + cashAmount + bankAmount;
+    const newPaidCash = parseFloat(currentUmrah.paidCash) - cashAmount;
+    const newPaidInBank = parseFloat(currentUmrah.paidInBank) - bankAmount;
+
+    // Delete the payment record
+    const deletedPayment = await db
+      .deleteFrom('umrah_payments')
+      .where('id', '=', paymentId)
+      .returningAll()
+      .executeTakeFirst();
+
+    // Update the Umrah booking amounts
+    await db
+      .updateTable('Umrah')
+      .set({
+        remainingAmount: newRemainingAmount,
+        paidCash: newPaidCash,
+        paidInBank: newPaidInBank,
+      })
+      .where('id', '=', paymentRecord.umrah_id)
+      .execute();
+
+    return {
+      status: 'success',
+      code: 200,
+      message: 'Payment deleted successfully and Umrah amounts updated',
+      payment: deletedPayment,
+    };
+  } catch (error) {
+    console.error('Error in deleteUmrahPayment service:', error);
+    return {
+      status: 'error',
+      code: 500,
+      message: 'Failed to delete payment',
+      errors: error.message,
+    };
+  }
+};
