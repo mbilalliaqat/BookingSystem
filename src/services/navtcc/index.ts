@@ -1,4 +1,5 @@
 import { incrementEntryCounts } from "../counters";
+import { archiveRecord } from '../archive';
 
 const formatDateForDB = (dateStr: string | null | undefined): string | null => {
   if (!dateStr || dateStr.trim() === "") return null;
@@ -112,34 +113,45 @@ export const updateNavtcc = async (id: number, body: any, db: any) => {
   }
 };
 
-export const deleteNavtcc = async (id: number, db: any) => {
+export const deleteNavtcc = async (id: number, db: any, deletedBy: string = 'system') => {
   try {
+    // 1. Fetch record
+    const record = await db
+      .selectFrom('navtcc')
+      .selectAll()
+      .where('id', '=', id)
+      .executeTakeFirst();
+
+    if (!record) {
+      return { status: 'error', code: 404, message: 'NAVTCC record not found' };
+    }
+
+    // 2. Archive record
+    const archiveResult = await archiveRecord('navtcc', id, { navtcc: record }, db, deletedBy);
+
+    if (archiveResult.status !== 'success') {
+      return { status: 'error', code: 500, message: 'Failed to archive NAVTCC record', errors: archiveResult.message };
+    }
+
+    // 3. Delete original record
     const deleted = await db
-      .deleteFrom("navtcc")
-      .where("id", "=", id)
+      .deleteFrom('navtcc')
+      .where('id', '=', id)
       .returningAll()
       .executeTakeFirst();
 
-    if (!deleted) {
-      return {
-        status: "error",
-        code: 404,
-        message: "NAVTCC record not found",
-      };
-    }
-
     return {
-      status: "success",
+      status: 'success',
       code: 200,
-      message: "NAVTCC deleted successfully",
+      message: 'NAVTCC archived and deleted successfully',
       data: deleted,
     };
   } catch (error: any) {
-    console.error("Error in deleteNavtcc:", error);
+    console.error('Error in deleteNavtcc:', error);
     return {
-      status: "error",
+      status: 'error',
       code: 500,
-      message: "Failed to delete NAVTCC record",
+      message: 'Failed to delete NAVTCC record',
       errors: error.message,
     };
   }

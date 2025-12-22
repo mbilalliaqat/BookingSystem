@@ -53,8 +53,17 @@ app.put('/expenses/:id', async (c) => {
 app.delete('/expenses/:id', async (c) => {
   try {
     const id = c.req.param('id');
-    const result = await deleteExpense(parseInt(id), globalThis.env.DB);
-    return c.json(result, result.code);
+    const deletedBy = c.req.header('X-User-Name') || 'system';
+    const result = await deleteExpense(parseInt(id), globalThis.env.DB, deletedBy);
+    return c.json(
+      {
+        status: result.status,
+        message: result.message,
+        ...(result.expense && { expense: result.expense }),
+        ...(result.errors && { errors: result.errors }),
+      },
+      result.code
+    );
   } catch (error) {
     console.error('Error deleting expense:', error);
     return c.json({ status: 'error', message: 'Failed to delete expense' }, 500);

@@ -1,14 +1,14 @@
 // services/archive.ts
 export const archiveRecord = async (
-  moduleName: string, 
-  recordId: number, 
-  recordData: any, 
+  moduleName: string,
+  recordId: number,
+  recordData: any,
   db: any,
   deletedBy: string = 'system'
 ) => {
   try {
     const now = new Date();
-    
+
     await db
       .insertInto('archived_data')
       .values({
@@ -27,12 +27,18 @@ export const archiveRecord = async (
   }
 };
 
-export const getArchivedRecords = async (moduleName: string, db: any) => {
+export const getArchivedRecords = async (moduleName: string | null, db: any) => {
   try {
-    const records = await db
+    let query = db
       .selectFrom('archived_data')
-      .selectAll()
-      .where('module_name', '=', moduleName)
+      .selectAll();
+    
+    // Only add WHERE clause if moduleName is provided and not 'all'
+    if (moduleName && moduleName !== 'all') {
+      query = query.where('module_name', '=', moduleName);
+    }
+    
+    const records = await query
       .orderBy('deleted_at', 'desc')
       .execute();
 

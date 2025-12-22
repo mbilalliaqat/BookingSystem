@@ -1,4 +1,5 @@
 import { incrementEntryCounts } from "../counters";
+import { archiveRecord } from '../archive';
 
 const formatDateForDB = (dateStr: string | null | undefined): string | null => {
   if (!dateStr || dateStr.trim() === '') {

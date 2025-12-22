@@ -1,4 +1,5 @@
 import { incrementEntryCounts } from "../counters";
+import { archiveRecord } from '../archive';
 
 const formatDateForDB = (dateStr: string | null | undefined): string | null => {
   if (!dateStr || dateStr.trim() === "") return null;
@@ -37,13 +38,13 @@ export const createService = async (body: any, db: any) => {
       .returningAll()
       .executeTakeFirst();
 
-   
+
 
     if (newService && currentEntryNumber) {
       console.log('Calling incrementEntryCounts for Service');
       await incrementEntryCounts("services", currentEntryNumber, db);
     }
-    
+
 
     return {
       status: "success",
@@ -170,7 +171,7 @@ export const getServiceById = async (id: number, db: any) => {
     };
   }
 };
- 
+
 export const createServicePayment = async (body: any, db: any) => {
   try {
     const now = new Date();
@@ -216,17 +217,33 @@ export const createServicePayment = async (body: any, db: any) => {
       .returningAll()
       .executeTakeFirst();
 
+    // FIXED: Removed updated_at from the update
     const updatedService = await db
       .updateTable('services')
-      .set({ remaining_amount: newRemaining, paid_cash: newPaidCash, paid_in_bank: newPaidInBank, updated_at: now })
+      .set({
+        remaining_amount: newRemaining,
+        paid_cash: newPaidCash,
+        paid_in_bank: newPaidInBank
+      })
       .where('id', '=', body.service_id)
       .returningAll()
       .executeTakeFirst();
 
-    return { status: 'success', code: 201, message: 'Payment recorded and service amounts updated successfully', payment: newPayment, service: updatedService };
+    return {
+      status: 'success',
+      code: 201,
+      message: 'Payment recorded and service amounts updated successfully',
+      payment: newPayment,
+      service: updatedService
+    };
   } catch (error: any) {
     console.error('Error in createServicePayment:', error);
-    return { status: 'error', code: 500, message: 'Failed to record payment or update service', errors: error.message };
+    return {
+      status: 'error',
+      code: 500,
+      message: 'Failed to record payment or update service',
+      errors: error.message
+    };
   }
 };
 
@@ -353,34 +370,58 @@ export const deleteServicePayment = async (paymentId: number, db: any) => {
   }
 };
 
-export const deleteService = async (id: number, db: any) => {
+export const deleteService = async (id: number, db: any, deletedBy: string = 'system') => {
   try {
+    // 1. Fetch service
+    const serviceRecord = await db
+      .selectFrom('services')
+      .selectAll()
+      .where('id', '=', id)
+      .executeTakeFirst();
+
+    if (!serviceRecord) {
+      return { status: 'error', code: 404, message: 'Service not found' };
+    }
+
+    // 2. Get related payments
+    const payments = await db
+      .selectFrom('services_payments')
+      .selectAll()
+      .where('service_id', '=', id)
+      .execute();
+
+    // 3. Archive service with related data
+    const archiveResult = await archiveRecord('services', id, { service: serviceRecord, payments }, db, deletedBy);
+
+    if (archiveResult.status !== 'success') {
+      return { status: 'error', code: 500, message: 'Failed to archive service', errors: archiveResult.message };
+    }
+
+    // 4. Delete payments
+    await db
+      .deleteFrom('services_payments')
+      .where('service_id', '=', id)
+      .execute();
+
+    // 5. Delete service
     const deleted = await db
-      .deleteFrom("services")
-      .where("id", "=", id)
+      .deleteFrom('services')
+      .where('id', '=', id)
       .returningAll()
       .executeTakeFirst();
 
-    if (!deleted) {
-      return {
-        status: "error",
-        code: 404,
-        message: "Service not found",
-      };
-    }
-
     return {
-      status: "success",
+      status: 'success',
       code: 200,
-      message: "Service deleted successfully",
+      message: 'Service archived and deleted successfully',
       data: deleted,
     };
   } catch (error: any) {
-    console.error("Error in deleteService:", error);
+    console.error('Error in deleteService:', error);
     return {
-      status: "error",
+      status: 'error',
       code: 500,
-      message: "Failed to delete service",
+      message: 'Failed to delete service',
       errors: error.message,
     };
   }

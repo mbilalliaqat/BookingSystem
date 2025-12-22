@@ -1,5 +1,8 @@
 import { incrementEntryCounts } from "../counters";
 
+import { incrementEntryCounts } from '../counters';
+import { archiveRecord } from '../archive';
+
 const formatDateForDB = (dateStr: string | null | undefined): string | null => {
   if (!dateStr || dateStr.trim() === '') {
     return null;
@@ -402,26 +405,50 @@ export const updateGamcaToken = async (id: number, body: any, db: any) => {
   }
 };
 
-export const deleteGamcaToken = async (id: number, db: any) => {
+export const deleteGamcaToken = async (id: number, db: any, deletedBy: string = 'system') => {
   try {
+    // 1. Get gamca token data
+    const tokenRecord = await db
+      .selectFrom('gamca_token')
+      .selectAll()
+      .where('id', '=', id)
+      .executeTakeFirst();
+
+    if (!tokenRecord) {
+      return { status: 'error', code: 404, message: 'GAMCA token not found' };
+    }
+
+    // 2. Get related payments
+    const payments = await db
+      .selectFrom('gamca_token_payments')
+      .selectAll()
+      .where('gamca_token_id', '=', id)
+      .execute();
+
+    // 3. Archive token with related data
+    const archiveResult = await archiveRecord('gamca_token', id, { token: tokenRecord, payments }, db, deletedBy);
+
+    if (archiveResult.status !== 'success') {
+      return { status: 'error', code: 500, message: 'Failed to archive GAMCA token', errors: archiveResult.message };
+    }
+
+    // 4. Delete payments
+    await db
+      .deleteFrom('gamca_token_payments')
+      .where('gamca_token_id', '=', id)
+      .execute();
+
+    // 5. Delete token
     const deleted = await db
       .deleteFrom('gamca_token')
       .where('id', '=', id)
       .returningAll()
       .executeTakeFirst();
 
-    if (!deleted) {
-      return {
-        status: 'error',
-        code: 404,
-        message: 'GAMCA token not found',
-      };
-    }
-
     return {
       status: 'success',
       code: 200,
-      message: 'GAMCA token deleted successfully',
+      message: 'GAMCA token archived and deleted successfully',
       data: deleted,
     };
   } catch (error: any) {

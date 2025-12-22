@@ -1,4 +1,5 @@
 import { incrementEntryCounts } from "../counters";
+import { archiveRecord } from '../archive';
 
 export const createRefunded = async (body: any, db: any) => {
   try {
@@ -114,29 +115,40 @@ export const updateRefunded = async (id: number, body: any, db: any) => {
   }
 };
 
-export const deleteRefunded = async (id: number, db: any) => {
+export const deleteRefunded = async (id: number, db: any, deletedBy: string = 'system') => {
   try {
+    // 1. Fetch refunded record
+    const refundedRecord = await db
+      .selectFrom('refunded')
+      .selectAll()
+      .where('id', '=', id)
+      .executeTakeFirst();
+
+    if (!refundedRecord) {
+      return { status: 'error', code: 404, message: 'Refunded record not found' };
+    }
+
+    // 2. Archive refunded record
+    const archiveResult = await archiveRecord('refunded', id, { refunded: refundedRecord }, db, deletedBy);
+
+    if (archiveResult.status !== 'success') {
+      return { status: 'error', code: 500, message: 'Failed to archive refunded record', errors: archiveResult.message };
+    }
+
+    // 3. Delete refunded record
     const deletedRefunded = await db
       .deleteFrom('refunded')
       .where('id', '=', id)
       .returningAll()
       .executeTakeFirst();
 
-    if (!deletedRefunded) {
-      return {
-        status: 'error',
-        code: 404,
-        message: 'Refunded record not found'
-      };
-    }
-
     return {
       status: 'success',
       code: 200,
-      message: 'Refunded record deleted successfully',
+      message: 'Refunded record archived and deleted successfully',
       refunded: deletedRefunded
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in deleteRefunded:', error);
     return {
       status: 'error',

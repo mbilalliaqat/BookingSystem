@@ -1,4 +1,5 @@
 import { incrementEntryCounts } from "../counters";
+import { archiveRecord } from '../archive';
 
 export const createEntry = async (body: any, db: any) => {
   try {
@@ -217,12 +218,12 @@ export const updateEntry = async (id: number, body: any, db: any) => {
   }
 };
 
-export const deleteEntry = async (id: number, db: any) => {
+export const deleteEntry = async (id: number, db: any, deletedBy: string = 'system') => {
   try {
     // First get the entry to be deleted
     const existingEntry = await db
       .selectFrom('office_accounts')
-      .select(['id', 'bank_name', 'credit', 'debit'])
+      .select(['id', 'bank_name', 'credit', 'debit', 'balance', 'entry', 'employee_name', 'date', 'detail', 'vendor_name'])
       .where('id', '=', id)
       .executeTakeFirst();
     
@@ -243,6 +244,16 @@ export const deleteEntry = async (id: number, db: any) => {
     
     // Find the index of the entry to be deleted
     const entryIndex = allEntries.findIndex(entry => entry.id === id);
+
+    // Prepare affected entries for archive (those that will have balances updated)
+    const affectedEntries = entryIndex !== -1 ? allEntries.slice(entryIndex + 1) : [];
+
+    // Archive the entry and the affected entries before making changes
+    const archiveResult = await archiveRecord('office_accounts', id, { entry: existingEntry, affectedEntries }, db, deletedBy);
+
+    if (archiveResult.status !== 'success') {
+      throw new Error('Failed to archive office account entry');
+    }
     
     if (entryIndex !== -1) {
       // Delete the entry
@@ -266,7 +277,8 @@ export const deleteEntry = async (id: number, db: any) => {
       }
     }
     
-    return true;
+    // Return the deleted entry data for convenience
+    return existingEntry;
   } catch (error) {
     console.error('Error deleting entry:', error);
     throw error;

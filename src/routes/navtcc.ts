@@ -95,16 +95,16 @@ app.post('/navtcc', async (c) => {
   app.delete('/navtcc/:id', async (c) => {
     try {
       const id = Number(c.req.param('id'));
+      const deletedBy = c.req.header('X-User-Name') || 'system';
   
-      
-      const result = await deleteNavtcc (id, globalThis.env.DB);
+      const result = await deleteNavtcc(id, globalThis.env.DB, deletedBy);
   
     
       return c.json(
         {
           status: result.status,
           message: result.message,
-          ...(result.navtcc && { navtcc: result.navtcc}),
+          ...(result.data && { navtcc: result.data }),
           ...(result.errors && { errors: result.errors }),
         },
         result.code

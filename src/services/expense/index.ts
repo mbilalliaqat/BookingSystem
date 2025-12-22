@@ -1,4 +1,5 @@
 import { incrementEntryCounts } from "../counters";
+import { archiveRecord } from '../archive';
 
 export const createExpense = async (body: any, db: any) => {
   try {
@@ -249,7 +250,7 @@ export const updateExpense = async (id: number, body: any, db: any) => {
   }
 };
 
-export const deleteExpense = async (id: number, db: any) => {
+export const deleteExpense = async (id: number, db: any, deletedBy: string = 'system') => {
   try {
     // First get the expense to find associated vendor transactions
     const expense = await db
@@ -264,6 +265,29 @@ export const deleteExpense = async (id: number, db: any) => {
         code: 404,
         message: 'Expense not found'
       };
+    }
+
+    // Fetch associated vendor transactions (for archiving)
+    let vendorTxns: any[] = [];
+    if (expense.vendor_name && expense.entry) {
+      try {
+        vendorTxns = await db
+          .selectFrom('vender')
+          .selectAll()
+          .where('entry', '=', expense.entry)
+          .where('vender_name', '=', expense.vendor_name)
+          .where('detail', 'like', `Expense - ${expense.detail}%`)
+          .execute();
+      } catch (vendorFetchError) {
+        console.error('Error fetching vendor transactions for archive:', vendorFetchError);
+      }
+    }
+
+    // Archive expense and related vendor transactions
+    const archiveResult = await archiveRecord('expense', id, { expense, vendorTxns }, db, deletedBy);
+
+    if (archiveResult.status !== 'success') {
+      return { status: 'error', code: 500, message: 'Failed to archive expense', errors: archiveResult.message };
     }
 
     // Delete associated vendor transaction if exists
@@ -290,10 +314,10 @@ export const deleteExpense = async (id: number, db: any) => {
     return {
       status: 'success',
       code: 200,
-      message: 'Expense deleted successfully',
+      message: 'Expense archived and deleted successfully',
       expense: deletedExpense
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in deleteExpense:', error);
     return {
       status: 'error',

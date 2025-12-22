@@ -1,4 +1,5 @@
 import { incrementEntryCounts } from "../counters";
+import { archiveRecord } from '../archive';
 
 
 export const createProtector = async (body: any, db:any) => {
@@ -118,29 +119,40 @@ export const updateProtector = async (id: number, body: any,db:any) => {
   }
 };
 
-export const deleteProtector = async (id: number,db:any) => {
+export const deleteProtector = async (id: number, db:any, deletedBy: string = 'system') => {
   try {
+    // 1. Fetch protector
+    const protectorRecord = await db
+      .selectFrom('protector')
+      .selectAll()
+      .where('id', '=', id)
+      .executeTakeFirst();
+
+    if (!protectorRecord) {
+      return { status: 'error', code: 404, message: 'Protector not found' };
+    }
+
+    // 2. Archive protector
+    const archiveResult = await archiveRecord('protector', id, { protector: protectorRecord }, db, deletedBy);
+
+    if (archiveResult.status !== 'success') {
+      return { status: 'error', code: 500, message: 'Failed to archive protector', errors: archiveResult.message };
+    }
+
+    // 3. Delete protector
     const deletedProtector = await db
       .deleteFrom('protector')
       .where('id', '=', id)
       .returningAll()
       .executeTakeFirst();
 
-    if (!deletedProtector) {
-      return {
-        status: 'error',
-        code: 404,
-        message: 'Protector not found'
-      };
-    }
-
     return {
       status: 'success',
       code: 200,
-      message: 'Protector deleted successfully',
+      message: 'Protector archived and deleted successfully',
       protector: deletedProtector
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in deleteProtector:', error);
     return {
       status: 'error',

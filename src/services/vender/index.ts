@@ -1,4 +1,5 @@
 import { incrementEntryCounts } from "../counters";
+import { archiveRecord } from '../archive';
 
 export const createVendor = async (body: any, db: any) => {
   try {
@@ -346,9 +347,9 @@ export const updateVendor = async (id: number, body: any, db: any) => {
   }
 }
 
-export const deleteVendor = async (id: number, db: any) => {
+export const deleteVendor = async (id: number, db: any, deletedBy: string = 'system') => {
   try {
-    // First get the entry to be deleted
+    // 1. Fetch the vendor entry
     const existingVendor = await db
       .selectFrom('vender')
       .selectAll()
@@ -365,7 +366,14 @@ export const deleteVendor = async (id: number, db: any) => {
 
     const vendorName = existingVendor.vender_name;
 
-    // Delete the entry
+    // 2. Archive vendor record
+    const archiveResult = await archiveRecord('vender', id, { vendor: existingVendor }, db, deletedBy);
+
+    if (archiveResult.status !== 'success') {
+      return { status: 'error', code: 500, message: 'Failed to archive vendor record', errors: archiveResult.message };
+    }
+
+    // 3. Delete the entry
     const deletedVendor = await db
       .deleteFrom('vender')
       .where('id', '=', id)
@@ -380,13 +388,13 @@ export const deleteVendor = async (id: number, db: any) => {
       };
     }
 
-    // Recalculate all balances for this vendor to ensure consistency
+    // 4. Recalculate all balances for this vendor to ensure consistency
     await recalculateVendorBalances(vendorName, db);
 
     return {
       status: 'success',
       code: 200,
-      message: 'Vendor record deleted successfully',
+      message: 'Vendor record archived and deleted successfully',
       vendor: {
         id: deletedVendor.id,
         vender_name: deletedVendor.vender_name,
@@ -400,7 +408,7 @@ export const deleteVendor = async (id: number, db: any) => {
       }
     };
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in deleteVendor:', error);
     return {
       status: 'error',

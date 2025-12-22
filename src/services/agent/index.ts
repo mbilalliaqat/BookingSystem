@@ -1,4 +1,5 @@
 import { incrementEntryCounts } from "../counters";
+import { archiveRecord } from '../archive';
 
 export const createAgent = async (body: any, db: any) => {
   try {
@@ -387,9 +388,9 @@ export const updateAgent = async (id: number, body: any, db: any) => {
   }
 }
 
-export const deleteAgent = async (id: number, db: any) => {
+export const deleteAgent = async (id: number, db: any, deletedBy: string = 'system') => {
   try {
-    // First get the entry to be deleted
+    // 1. Fetch the entry to be deleted
     const existingAgent = await db
       .selectFrom('agent')
       .selectAll()
@@ -406,7 +407,14 @@ export const deleteAgent = async (id: number, db: any) => {
 
     const agentName = existingAgent.agent_name;
 
-    // Delete the entry
+    // 2. Archive agent record
+    const archiveResult = await archiveRecord('agent', id, { agent: existingAgent }, db, deletedBy);
+
+    if (archiveResult.status !== 'success') {
+      return { status: 'error', code: 500, message: 'Failed to archive agent record', errors: archiveResult.message };
+    }
+
+    // 3. Delete the entry
     const deletedAgent = await db
       .deleteFrom('agent')
       .where('id', '=', id)
@@ -421,7 +429,7 @@ export const deleteAgent = async (id: number, db: any) => {
       };
     }
 
-    // Recalculate all balances for this agent to ensure consistency
+    // 4. Recalculate all balances for this agent to ensure consistency
     await recalculateAgentBalances(agentName, db);
 
     console.log(`Deleted agent entry ID ${id}: ${agentName}`);
@@ -429,7 +437,7 @@ export const deleteAgent = async (id: number, db: any) => {
     return {
       status: 'success',
       code: 200,
-      message: 'Agent record deleted successfully',
+      message: 'Agent record archived and deleted successfully',
       agent: {
         id: deletedAgent.id,
         agent_name: deletedAgent.agent_name,
@@ -447,7 +455,7 @@ export const deleteAgent = async (id: number, db: any) => {
       }
     };
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in deleteAgent:', error);
     return {
       status: 'error',

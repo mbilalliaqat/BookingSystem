@@ -37,8 +37,17 @@ app.put('/refunded/:id', async (c) => {
 app.delete('/refunded/:id', async (c) => {
   try {
     const id = Number(c.req.param('id'));
-    const result = await deleteRefunded(id, globalThis.env.DB);
-    return c.json(result, result.code);
+    const deletedBy = c.req.header('X-User-Name') || 'system';
+    const result = await deleteRefunded(id, globalThis.env.DB, deletedBy);
+    return c.json(
+      {
+        status: result.status,
+        message: result.message,
+        ...(result.refunded && { refunded: result.refunded }),
+        ...(result.errors && { errors: result.errors }),
+      },
+      result.code
+    );
   } catch (error) {
     console.error('Error deleting refunded record:', error);
     return c.json({ status: 'error', message: 'Failed to delete refunded record' }, 500);

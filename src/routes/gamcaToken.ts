@@ -98,15 +98,17 @@ app.get('/gamca-token', async (c) => {
   app.delete('/gamca-token/:id', async (c) => {
     try {
       const id = Number(c.req.param('id'));
-  
+      const deletedBy = c.req.header('X-User-Name') || 'system';
+
       // Call the deleteGamcaToken service
-      const result = await deleteGamcaToken(id, globalThis.env.DB);
-  
+      const result = await deleteGamcaToken(id, globalThis.env.DB, deletedBy);
+
       // Return the result from the service
       return c.json(
         {
           status: result.status,
           message: result.message,
+          ...(result.data && { data: result.data }),
         },
         result.code
       );

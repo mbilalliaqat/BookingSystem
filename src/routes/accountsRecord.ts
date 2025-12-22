@@ -57,13 +57,14 @@ app.put('/accounts/:id', async (c) => {
 app.delete('/accounts/:id', async (c) => {
   try {
     const id = c.req.param('id');
-    const result = await deleteEntry(parseInt(id), globalThis.env.DB);
+    const deletedBy = c.req.header('X-User-Name') || 'system';
+    const result = await deleteEntry(parseInt(id), globalThis.env.DB, deletedBy);
     
     if (!result) {
       return c.json({ message: 'Entry not found' }, 404);
     }
     
-    return c.json({ message: 'Entry deleted successfully' }, 200);
+    return c.json({ message: 'Entry archived and deleted successfully', deletedEntry: result }, 200);
   } catch (error) {
     console.error('Error deleting entry:', error);
     return c.json({ message: 'Failed to delete entry' }, 500);

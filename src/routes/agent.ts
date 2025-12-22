@@ -53,8 +53,17 @@ app.put('/agent/:id', async(c) =>{
 app.delete('/agent/:id', async (c) => {
   try {
     const id = Number(c.req.param('id'));
-    const result = await deleteAgent(id, globalThis.env.DB);
-    return c.json(result);
+    const deletedBy = c.req.header('X-User-Name') || 'system';
+    const result = await deleteAgent(id, globalThis.env.DB, deletedBy);
+    return c.json(
+      {
+        status: result.status,
+        message: result.message,
+        ...(result.agent && { agent: result.agent }),
+        ...(result.errors && { errors: result.errors }),
+      },
+      result.code
+    );
   } catch (error) {
     console.error('Error deleting agent record:', error);
     return c.json({ status: 'error', message: 'Failed to delete agent record' }, 500);
