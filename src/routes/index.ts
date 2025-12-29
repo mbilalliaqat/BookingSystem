@@ -19,6 +19,9 @@ import './umrahPayment'
 import './visaPayment'
 import './GamcaPayment'
 import './archive'
+import './e_number'
+import './bank_detail'
+import './other_cp'
 
 
 

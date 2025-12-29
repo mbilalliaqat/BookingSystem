@@ -1,9 +1,10 @@
 import app from '../app';
-import {  loginUser, signupUser, getPendingUsers } from '../services/users';
+import { loginUser, signupUser, getPendingUsers } from '../services/users';
 import { checkLogin, adminOnly } from '../middlewares';
-import { incrementEntryCounts,getEntryCounts  } from '../services/counters';
+import { incrementEntryCounts, getEntryCounts } from '../services/counters';
 import { createUmrahPayment, getUmrahPaymentsByUmrahId, updateUmrahPayment, deleteUmrahPayment } from '../services/umrahPayment';
 import { deleteUmrah } from '../services/umrah';
+import { encrypt } from '../utils/encryption';
 
 
 
@@ -12,7 +13,7 @@ import { deleteUmrah } from '../services/umrah';
 app.post('/user/signup', async (c) => {
   try {
     const body = await c.req.json();
-    
+
     // Call the signup service
     const result = await signupUser(body, globalThis.env.DB);
 
@@ -181,17 +182,17 @@ app.get('/test-route', async (c) => {
 
     // Call the signup service
     const user = await db
-    .selectFrom('User')
-    // .where('username', '=', username)
-    .selectAll()
-    .executeTakeFirst();
+      .selectFrom('User')
+      // .where('username', '=', username)
+      .selectAll()
+      .executeTakeFirst();
     // Return the result from the service
     return c.json(
       {
         status: user,
         message: 'message success'
       },
-      
+
     );
   } catch (error) {
     console.error('Error during signup:', error);
@@ -208,41 +209,33 @@ app.get('/test-route', async (c) => {
 
 app.post('/create-user', async (c) => {
   try {
-    // Get request body
     const body = await c.req.json();
-    
-    // Get current timestamp for both createdAt and updatedAt
-    const now = new Date();
-    
-    // Access database from global environment
+
     let db = globalThis.env.DB;
-    
-    // Insert user into database with timestamps
+
     const newUser = await db
-      .insertInto('User')
+      .insertInto('users')
       .values({
-        name: body.name,
+        username: body.username,
         email: body.email,
-        password: body.password, // Note: In production, you should hash this
-        role: body.role || 'user', // Default to 'user' if not provided
-        createdAt: now,
-        updatedAt: now
+         password_hash: body.password_hash, // Note: Hash this in production!
+        role: body.role || 'employee',
+        isApproved: body.role === 'admin' ? true : false  // Auto-approve admins
       })
       .returningAll()
       .executeTakeFirst();
-    
-    // Return success response
+
     return c.json(
       {
         status: 'success',
         message: 'User created successfully',
         user: newUser
       },
-      201 // HTTP 201 Created
+      201
     );
   } catch (error) {
     console.error('Error creating user:', error);
-    
+
     return c.json(
       {
         status: 'error',
@@ -472,7 +465,7 @@ app.put('/umrah/:id', async (c) => {
     );
   } catch (error) {
     console.error('Error updating umrah:', error);
-    
+
     return c.json(
       {
         status: 'error',
@@ -590,6 +583,6 @@ app.delete('/umrah/payment/:id', async (c) => {
   }
 });
 
-  
+
 
 
