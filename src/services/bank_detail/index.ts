@@ -1,3 +1,5 @@
+// Updated index.ts with automatic balance calculation
+
 import { incrementEntryCounts } from '../counters';
 import { archiveRecord } from '../archive';
 
@@ -8,12 +10,82 @@ const formatDateForDB = (dateStr: string | null | undefined): string | null => {
   return dateStr;
 };
 
+// Helper function to get the latest balance for recalculation
+const getLatestBalance = async (db: any, currentId?: number): Promise<number> => {
+  try {
+    let query = db
+      .selectFrom('bank_details')
+      .select('balance')
+      .orderBy('id', 'desc');
+    
+    // Exclude current entry if updating
+    if (currentId) {
+      query = query.where('id', '<', currentId);
+    }
+    
+    const latestEntry = await query.executeTakeFirst();
+    
+    return latestEntry ? parseFloat(latestEntry.balance) || 0 : 0;
+  } catch (error) {
+    console.error('Error getting latest balance:', error);
+    return 0;
+  }
+};
+
+// Helper function to recalculate all balances after a specific ID
+const recalculateBalancesAfter = async (db: any, startId: number) => {
+  try {
+    // Get all entries after the modified one, ordered by ID
+    const entries = await db
+      .selectFrom('bank_details')
+      .selectAll()
+      .where('id', '>=', startId)
+      .orderBy('id', 'asc')
+      .execute();
+
+    if (entries.length === 0) return;
+
+    // Get the balance before the first entry
+    const previousBalance = startId > 1 
+      ? await getLatestBalance(db, startId)
+      : 0;
+
+    let runningBalance = previousBalance;
+
+    // Update each entry's balance
+    for (const entry of entries) {
+      const credit = parseFloat(entry.credit) || 0;
+      const debit = parseFloat(entry.debit) || 0;
+      
+      runningBalance = runningBalance + credit - debit;
+
+      await db
+        .updateTable('bank_details')
+        .set({ balance: runningBalance })
+        .where('id', '=', entry.id)
+        .execute();
+    }
+
+    console.log(`Recalculated balances for ${entries.length} entries starting from ID ${startId}`);
+  } catch (error) {
+    console.error('Error recalculating balances:', error);
+  }
+};
+
 export const createBankDetail = async (body: any, db: any) => {
   try {
     const now = new Date();
-    // Extract number after space and before slash: "BD 1/3" -> 1
     const entryMatch = body.entry.match(/(\d+)\/\d+/);
     const currentEntryNumber = entryMatch ? parseInt(entryMatch[1]) : null;
+
+    const credit = parseFloat(body.credit) || 0;
+    const debit = parseFloat(body.debit) || 0;
+
+    // Get the latest balance from the most recent entry
+    const previousBalance = await getLatestBalance(db);
+    
+    // Calculate new balance: previous balance + credit - debit
+    const calculatedBalance = previousBalance + credit - debit;
 
     const newBankDetail = await db
       .insertInto('bank_details')
@@ -22,9 +94,9 @@ export const createBankDetail = async (body: any, db: any) => {
         entry: body.entry,
         employee: body.employee,
         detail: body.detail,
-        credit: parseFloat(body.credit) || 0,
-        debit: parseFloat(body.debit) || 0,
-        balance: parseFloat(body.balance) || 0,
+        credit: credit,
+        debit: debit,
+        balance: calculatedBalance,
         created_at: now,
         updated_at: now,
       })
@@ -74,7 +146,7 @@ export const getBankDetails = async (db: any, filters?: any) => {
       query = query.where('debit', '>=', parseFloat(filters.minDebit));
     }
 
-    const bankDetails = await query.orderBy('created_at', 'desc').execute();
+    const bankDetails = await query.orderBy('id', 'asc').execute();
 
     return {
       status: 'success',
@@ -133,7 +205,7 @@ export const updateBankDetail = async (id: number, body: any, db: any) => {
     // Check if record exists
     const existing = await db
       .selectFrom('bank_details')
-      .select(['id'])
+      .selectAll()
       .where('id', '=', id)
       .executeTakeFirst();
 
@@ -145,6 +217,16 @@ export const updateBankDetail = async (id: number, body: any, db: any) => {
       };
     }
 
+    const credit = parseFloat(body.credit) || 0;
+    const debit = parseFloat(body.debit) || 0;
+
+    // Get the balance from the previous entry
+    const previousBalance = await getLatestBalance(db, id);
+    
+    // Calculate new balance for this entry
+    const calculatedBalance = previousBalance + credit - debit;
+
+    // Update the current entry
     const updatedBankDetail = await db
       .updateTable('bank_details')
       .set({
@@ -152,14 +234,17 @@ export const updateBankDetail = async (id: number, body: any, db: any) => {
         entry: body.entry,
         employee: body.employee,
         detail: body.detail,
-        credit: parseFloat(body.credit) || 0,
-        debit: parseFloat(body.debit) || 0,
-        balance: parseFloat(body.balance) || 0,
+        credit: credit,
+        debit: debit,
+        balance: calculatedBalance,
         updated_at: now,
       })
       .where('id', '=', id)
       .returningAll()
       .executeTakeFirst();
+
+    // Recalculate all balances after this entry
+    await recalculateBalancesAfter(db, id + 1);
 
     return {
       status: 'success',
@@ -220,6 +305,9 @@ export const deleteBankDetail = async (id: number, db: any, deletedBy: string = 
       .returningAll()
       .executeTakeFirst();
 
+    // 4. Recalculate all balances after the deleted entry
+    await recalculateBalancesAfter(db, id);
+
     return {
       status: 'success',
       code: 200,
@@ -249,7 +337,7 @@ export const searchBankDetails = async (searchTerm: string, db: any) => {
           eb('entry', 'like', `%${searchTerm}%`),
         ])
       )
-      .orderBy('created_at', 'desc')
+      .orderBy('id', 'asc')
       .execute();
 
     return {
@@ -302,7 +390,7 @@ export const getBankDetailsByEmployee = async (employee: string, db: any) => {
       .selectFrom('bank_details')
       .selectAll()
       .where('employee', '=', employee)
-      .orderBy('created_at', 'desc')
+      .orderBy('id', 'asc')
       .execute();
 
     return {
@@ -329,8 +417,14 @@ export const getTotalBalances = async (db: any) => {
       .select([
         db.fn.sum('credit').as('total_credit'),
         db.fn.sum('debit').as('total_debit'),
-        db.fn.sum('balance').as('total_balance'),
       ])
+      .executeTakeFirst();
+
+    // Get the latest balance (which is the cumulative balance)
+    const latestEntry = await db
+      .selectFrom('bank_details')
+      .select('balance')
+      .orderBy('id', 'desc')
       .executeTakeFirst();
 
     return {
@@ -340,7 +434,7 @@ export const getTotalBalances = async (db: any) => {
       data: {
         total_credit: parseFloat(result?.total_credit || '0'),
         total_debit: parseFloat(result?.total_debit || '0'),
-        total_balance: parseFloat(result?.total_balance || '0'),
+        total_balance: parseFloat(latestEntry?.balance || '0'),
       },
     };
   } catch (error: any) {

@@ -24,6 +24,13 @@ export const createOtherCp = async (body: any, db: any) => {
         detail: body.detail,
         card_payment: body.card_payment,
         card_amount: body.card_amount || 0,
+        receivable_amount: body.receivable_amount || 0,
+        paid_cash: body.paid_cash || 0,
+        paid_from_bank: body.paid_from_bank || null,
+        paid_in_bank: body.paid_in_bank || 0,
+        agent_name: body.agent_name || null,
+        profit: body.profit || 0,
+        remaining_amount: body.remaining_amount || 0,
         created_at: now,
         updated_at: now,
       })
@@ -123,6 +130,13 @@ export const updateOtherCp = async (id: number, body: any, db: any) => {
         detail: body.detail,
         card_payment: body.card_payment,
         card_amount: body.card_amount || 0,
+        receivable_amount: body.receivable_amount || 0,
+        paid_cash: body.paid_cash || 0,
+        paid_from_bank: body.paid_from_bank || null,
+        paid_in_bank: body.paid_in_bank || 0,
+        agent_name: body.agent_name || null,
+        profit: body.profit || 0,
+        remaining_amount: body.remaining_amount || 0,
         updated_at: now,
       })
       .where('id', '=', id)
