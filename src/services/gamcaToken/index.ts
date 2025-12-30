@@ -274,7 +274,7 @@ export const createGamcaToken = async (body: any, db: any) => {
     const entryMatch = body.entry.match(/(\d+)\/\d+/);
     const currentEntryNumber = entryMatch ? parseInt(entryMatch[1]) : null;
 
-    
+
 
     const newGamcaToken = await db
       .insertInto('gamca_token')
@@ -300,19 +300,20 @@ export const createGamcaToken = async (body: any, db: any) => {
         initial_paid_cash: body.paid_cash || 0,
         initial_paid_in_bank: body.paid_in_bank || 0,
         initial_remaining_amount: body.receivable_amount - (body.paid_cash || 0) - (body.paid_in_bank || 0),
-
+        pay_from_bank_card: body.pay_from_bank_card || null,  // Add this
+        card_amount: body.card_amount || 0,
         created_at: now,
         updated_at: now,
       })
       .returningAll()
       .executeTakeFirst();
 
-    
 
-   if (newGamcaToken && currentEntryNumber) {
-  console.log('Calling incrementEntryCounts for GAMCA');
-  await incrementEntryCounts('gamca', currentEntryNumber, db); // Use 'gamca' not 'gamca_token'
-}
+
+    if (newGamcaToken && currentEntryNumber) {
+      console.log('Calling incrementEntryCounts for GAMCA');
+      await incrementEntryCounts('gamca', currentEntryNumber, db); // Use 'gamca' not 'gamca_token'
+    }
     return {
       status: 'success',
       code: 201,
@@ -374,6 +375,8 @@ export const updateGamcaToken = async (id: number, body: any, db: any) => {
         initial_paid_cash: current.initial_paid_cash ?? (body.paid_cash || 0),
         initial_paid_in_bank: current.initial_paid_in_bank ?? (body.paid_in_bank || 0),
         initial_remaining_amount: current?.initial_remaining_amount || (body.receivable_amount - (body.paid_cash || 0) - (body.paid_in_bank || 0)),
+        pay_from_bank_card: body.pay_from_bank_card || null,  // Add this
+        card_amount: body.card_amount || 0,
         updated_at: now,
       })
       .where('id', '=', id)

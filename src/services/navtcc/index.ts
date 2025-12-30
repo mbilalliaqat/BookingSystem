@@ -31,6 +31,8 @@ export const createNavtcc = async (body: any, db: any) => {
         remaining_amount: parseFloat(body.remaining_amount) || 0,
         vendors: body.vendors || null, // Already JSON string from frontend
         agent_name: body.agent_name || null,
+        pay_from_bank_card: body.pay_from_bank_card || null,  // Add this
+        card_amount: body.card_amount || 0,
         created_at: now,
         updated_at: now,
       })
@@ -82,6 +84,8 @@ export const updateNavtcc = async (id: number, body: any, db: any) => {
         remaining_amount: parseFloat(body.remaining_amount) || 0,
         vendors: body.vendors || null,
         agent_name: body.agent_name || null,
+        pay_from_bank_card: body.pay_from_bank_card || null,  // Add this
+        card_amount: body.card_amount || 0,
         updated_at: now, // Only update updated_at, preserve created_at
       })
       .where("id", "=", id)
