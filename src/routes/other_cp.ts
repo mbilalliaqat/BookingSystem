@@ -17,7 +17,7 @@ app.post('/other-cp', async (c) => {
     const body = await c.req.json();
 
     // Validate required fields
-    if (!body.date || !body.entry || !body.employee || !body.detail || !body.card_payment || body.card_amount === undefined) {
+    if (!body.date || !body.entry || !body.employee || !body.detail || body.card_payment === undefined || body.card_amount === undefined) {
       return c.json(
         {
           status: 'error',
@@ -132,7 +132,7 @@ app.put('/other-cp/:id', async (c) => {
     const body = await c.req.json();
 
     // Validate required fields
-    if (!body.date || !body.entry || !body.employee || !body.detail || !body.card_payment || body.card_amount === undefined) {
+    if (!body.date || !body.entry || !body.employee || !body.detail || body.card_payment === undefined || body.card_amount === undefined) {
       return c.json(
         {
           status: 'error',

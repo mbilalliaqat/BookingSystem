@@ -10,7 +10,7 @@ export const getEntryCounts = async (db: KyselyDatabaseOperations) => {
     let counts = await db.selectFrom('entry_counters').selectAll().execute();
 
     // Ensure all required rows exist
-    const requiredTypes = ['global', 'gamca', 'ticket', 'umrah', 'services'];
+    const requiredTypes = ['global', 'gamca', 'ticket', 'umrah', 'services', 'other-cp','navtcc','protector','refunded','refund','account','e-number','bank-detail'];
     
     for (const type of requiredTypes) {
       if (!counts.find(c => c.form_type === type)) {
@@ -73,7 +73,8 @@ export const incrementEntryCounts = async (formType: string, actualEntryNumber: 
       
       // Only increment global count for main form types if this is a new entry
       let newGlobalCount = currentGlobalCount;
-      const mainFormTypes = ['gamca', 'ticket', 'umrah', 'services'];
+      // FIXED: Added 'other-cp' to the mainFormTypes array
+      const mainFormTypes = ['gamca', 'ticket', 'umrah', 'services', 'other-cp','other-cp','navtcc','protector','refunded','refund','account','e-number','bank-detail'];
       if (actualEntryNumber > currentFormCount && mainFormTypes.includes(formType)) {
         newGlobalCount = currentGlobalCount + 1;
         // Update the global_count for all rows

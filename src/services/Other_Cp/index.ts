@@ -11,9 +11,10 @@ const formatDateForDB = (dateStr: string | null | undefined): string | null => {
 export const createOtherCp = async (body: any, db: any) => {
   try {
     const now = new Date();
-    // Extract number after space and before slash: "OCP 1/3" -> 1
-    const entryMatch = body.entry.match(/(\d+)\/\d+/);
+    // Extract both numbers from entry: "OCP 1/75" -> currentNum=1, globalNum=75
+    const entryMatch = body.entry.match(/(\d+)\/(\d+)/);
     const currentEntryNumber = entryMatch ? parseInt(entryMatch[1]) : null;
+    const globalEntryNumber = entryMatch ? parseInt(entryMatch[2]) : null;
 
     const newOtherCp = await db
       .insertInto('other_cp')
@@ -40,9 +41,9 @@ export const createOtherCp = async (body: any, db: any) => {
       .returningAll()
       .executeTakeFirst();
 
-    if (newOtherCp && currentEntryNumber) {
-      console.log('Calling incrementEntryCounts for Other CP');
-      await incrementEntryCounts('other_cp', currentEntryNumber, db);
+    if (newOtherCp && currentEntryNumber && globalEntryNumber) {
+      console.log('Calling incrementEntryCounts for Other CP with global:', currentEntryNumber, globalEntryNumber);
+      await incrementEntryCounts('other-cp', currentEntryNumber, globalEntryNumber, db);
     }
 
     return {
@@ -479,11 +480,11 @@ export const deleteOtherCp = async (id: number, db: any, deletedBy: string = 'sy
     }, db, deletedBy);
 
     if (archiveResult.status !== 'success') {
-      return { 
-        status: 'error', 
-        code: 500, 
-        message: 'Failed to archive Other CP entry', 
-        errors: archiveResult.message 
+      return {
+        status: 'error',
+        code: 500,
+        message: 'Failed to archive Other CP entry',
+        errors: archiveResult.message
       };
     }
 
