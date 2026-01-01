@@ -73,8 +73,22 @@ export const incrementEntryCounts = async (formType: string, actualEntryNumber: 
       
       // Only increment global count for main form types if this is a new entry
       let newGlobalCount = currentGlobalCount;
-      // FIXED: Added 'other-cp' to the mainFormTypes array
-      const mainFormTypes = ['gamca', 'ticket', 'umrah', 'services', 'other-cp','other-cp','navtcc','protector','refunded','refund','account','e-number','bank-detail'];
+      // All form types that should contribute to global count
+      const mainFormTypes = [
+        'gamca', 
+        'ticket', 
+        'umrah', 
+        'services', 
+        'other-cp',
+        'navtcc',
+        'protector',
+        'refunded',
+        'refund',
+        'account',
+        'e-number',
+        'bank-detail'
+      ];
+      
       if (actualEntryNumber > currentFormCount && mainFormTypes.includes(formType)) {
         newGlobalCount = currentGlobalCount + 1;
         // Update the global_count for all rows
