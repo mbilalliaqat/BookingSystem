@@ -135,7 +135,7 @@ export const createNavtccPayment = async (body: any, db: any) => {
 
     const currentNavtcc = await db
       .selectFrom('navtcc')
-      .select(['remaining_amount', 'paid_cash', 'paid_in_bank', 'initial_paid_cash', 'initial_paid_in_bank'])
+      .select(['remaining_amount', 'paid_cash', 'paid_in_bank'])
       .where('id', '=', body.navtcc_id)
       .executeTakeFirst();
 
@@ -461,4 +461,3 @@ export const deleteNavtcc = async (id: number, db: any, deletedBy: string = 'sys
     };
   }
 };
-

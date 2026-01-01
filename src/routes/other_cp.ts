@@ -242,7 +242,7 @@ app.get('/other-cp/:id/payments', async (c) => {
 });
 
 // Update a payment
-app.put('/other-cp-payments/:id', async (c) => {
+app.put('/other-cp/payments/:id', async (c) => {
     try {
       const paymentId = parseInt(c.req.param('id'));
       if (isNaN(paymentId)) {
@@ -258,7 +258,7 @@ app.put('/other-cp-payments/:id', async (c) => {
 });
 
 // Delete a payment
-app.delete('/other-cp-payments/:id', async (c) => {
+app.delete('/other-cp/payments/:id', async (c) => {
     try {
       const paymentId = parseInt(c.req.param('id'));
       if (isNaN(paymentId)) {

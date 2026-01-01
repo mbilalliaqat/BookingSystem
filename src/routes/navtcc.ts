@@ -130,31 +130,19 @@ app.delete('/navtcc/:id', async (c) => {
 // ==================== PAYMENT ROUTES ====================
 
 // Create payment for NAVTCC
-app.post('/navtcc/payments', async (c) => {
+app.post('/navtcc/:id/payments', async (c) => {
   try {
+    const navtccId = parseInt(c.req.param('id'));
+    if (isNaN(navtccId)) {
+      return c.json({ status: 'error', code: 400, message: 'Invalid NAVTCC ID' }, 400);
+    }
     const body = await c.req.json();
-    const result = await createNavtccPayment(body, globalThis.env.DB);
-
-    return c.json(
-      {
-        status: result.status,
-        message: result.message,
-        ...(result.payment && { payment: result.payment }),
-        ...(result.navtcc && { navtcc: result.navtcc }),
-        ...(result.errors && { errors: result.errors }),
-      },
-      result.code
-    );
+    const payload = { ...body, navtcc_id: navtccId };
+    const result = await createNavtccPayment(payload, globalThis.env.DB);
+    return c.json(result, result.code);
   } catch (error) {
     console.error('Error creating NAVTCC payment:', error);
-
-    return c.json(
-      {
-        status: 'error',
-        message: 'Failed to create NAVTCC payment',
-      },
-      500
-    );
+    return c.json({ status: 'error', message: 'Failed to create NAVTCC payment' }, 500);
   }
 });
 
@@ -187,58 +175,32 @@ app.get('/navtcc/:id/payments', async (c) => {
 });
 
 // Update a payment
-app.put('/navtcc/payments/:paymentId', async (c) => {
+app.put('/navtcc/payments/:id', async (c) => {
   try {
-    const paymentId = Number(c.req.param('paymentId'));
+    const paymentId = parseInt(c.req.param('id'));
+    if (isNaN(paymentId)) {
+      return c.json({ status: 'error', code: 400, message: 'Invalid Payment ID' }, 400);
+    }
     const body = await c.req.json();
     const result = await updateNavtccPayment(paymentId, body, globalThis.env.DB);
-
-    return c.json(
-      {
-        status: result.status,
-        message: result.message,
-        ...(result.payment && { payment: result.payment }),
-        ...(result.errors && { errors: result.errors }),
-      },
-      result.code
-    );
+    return c.json(result, result.code);
   } catch (error) {
     console.error('Error updating NAVTCC payment:', error);
-
-    return c.json(
-      {
-        status: 'error',
-        message: 'Failed to update NAVTCC payment',
-      },
-      500
-    );
+    return c.json({ status: 'error', message: 'Failed to update NAVTCC payment' }, 500);
   }
 });
 
 // Delete a payment
-app.delete('/navtcc/payments/:paymentId', async (c) => {
+app.delete('/navtcc/payments/:id', async (c) => {
   try {
-    const paymentId = Number(c.req.param('paymentId'));
+    const paymentId = parseInt(c.req.param('id'));
+    if (isNaN(paymentId)) {
+      return c.json({ status: 'error', code: 400, message: 'Invalid Payment ID' }, 400);
+    }
     const result = await deleteNavtccPayment(paymentId, globalThis.env.DB);
-
-    return c.json(
-      {
-        status: result.status,
-        message: result.message,
-        ...(result.payment && { payment: result.payment }),
-        ...(result.errors && { errors: result.errors }),
-      },
-      result.code
-    );
+    return c.json(result, result.code);
   } catch (error) {
     console.error('Error deleting NAVTCC payment:', error);
-
-    return c.json(
-      {
-        status: 'error',
-        message: 'Failed to delete NAVTCC payment',
-      },
-      500
-    );
+    return c.json({ status: 'error', message: 'Failed to delete NAVTCC payment' }, 500);
   }
 });
