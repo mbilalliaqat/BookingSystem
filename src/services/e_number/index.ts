@@ -28,6 +28,7 @@ export const createENumber = async (body: any, db: any) => {
         mobile_no: body.mobileNo,
         pay_from_bank_card: body.payFromBankCard,
         card_amount: body.card_amount,
+        name:body.name,
         created_at: now,
         updated_at: now,
       })
@@ -164,6 +165,7 @@ export const updateENumber = async (id: number, body: any, db: any) => {
         mobile_no: body.mobileNo,
         pay_from_bank_card: body.payFromBankCard,
         card_amount: body.card_amount,
+        name:body.name,
         updated_at: now,
       })
       .where('id', '=', id)

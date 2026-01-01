@@ -4,7 +4,11 @@ import {
   getAllOtherCp, 
   getOtherCpById, 
   updateOtherCp, 
-  deleteOtherCp 
+  deleteOtherCp,
+  createOtherCpPayment,
+  getOtherCpPaymentsByOtherCpId,
+  updateOtherCpPayment,
+  deleteOtherCpPayment
 } from '../services/Other_Cp';
 
 // Create a new Other CP entry
@@ -200,4 +204,70 @@ app.delete('/other-cp/:id', async (c) => {
       500
     );
   }
+});
+
+// ==================== PAYMENT ROUTES ====================
+
+// Create payment for Other CP
+app.post('/other-cp/:id/payments', async (c) => {
+    try {
+      const otherCpId = parseInt(c.req.param('id'));
+      if (isNaN(otherCpId)) {
+        return c.json({ status: 'error', code: 400, message: 'Invalid Other CP ID' }, 400);
+      }
+      const body = await c.req.json();
+      // Add the other_cp_id from the URL parameter to the body for the service function
+      const payload = { ...body, other_cp_id: otherCpId };
+      const result = await createOtherCpPayment(payload, globalThis.env.DB);
+      return c.json(result, result.code);
+    } catch (error) {
+      console.error('Error creating other cp payment:', error);
+      return c.json({ status: 'error', message: 'Failed to create other cp payment' }, 500);
+    }
+});
+
+// Get payment history for a specific Other CP
+app.get('/other-cp/:id/payments', async (c) => {
+  try {
+    const otherCpId = parseInt(c.req.param('id'));
+    if (isNaN(otherCpId)) {
+        return c.json({ status: 'error', code: 400, message: 'Invalid Other CP ID' }, 400);
+    }
+    const result = await getOtherCpPaymentsByOtherCpId(otherCpId, globalThis.env.DB);
+    return c.json(result, result.code);
+  } catch (error) {
+    console.error('Error fetching Other CP payments:', error);
+    return c.json({ status: 'error', message: 'Failed to fetch Other CP payments' }, 500);
+  }
+});
+
+// Update a payment
+app.put('/other-cp-payments/:id', async (c) => {
+    try {
+      const paymentId = parseInt(c.req.param('id'));
+      if (isNaN(paymentId)) {
+        return c.json({ status: 'error', code: 400, message: 'Invalid Payment ID' }, 400);
+      }
+      const body = await c.req.json();
+      const result = await updateOtherCpPayment(paymentId, body, globalThis.env.DB);
+      return c.json(result, result.code);
+    } catch (error) {
+      console.error('Error updating other cp payment:', error);
+      return c.json({ status: 'error', message: 'Failed to update other cp payment' }, 500);
+    }
+});
+
+// Delete a payment
+app.delete('/other-cp-payments/:id', async (c) => {
+    try {
+      const paymentId = parseInt(c.req.param('id'));
+      if (isNaN(paymentId)) {
+        return c.json({ status: 'error', code: 400, message: 'Invalid Payment ID' }, 400);
+      }
+      const result = await deleteOtherCpPayment(paymentId, globalThis.env.DB);
+      return c.json(result, result.code);
+    } catch (error) {
+      console.error('Error deleting other cp payment:', error);
+      return c.json({ status: 'error', message: 'Failed to delete other cp payment' }, 500);
+    }
 });

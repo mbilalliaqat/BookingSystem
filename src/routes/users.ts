@@ -582,7 +582,3 @@ app.delete('/umrah/payment/:id', async (c) => {
     return c.json({ status: 'error', message: 'Failed to delete umrah payment' }, 500);
   }
 });
-
-
-
-

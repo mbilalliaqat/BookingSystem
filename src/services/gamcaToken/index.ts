@@ -1,6 +1,4 @@
 import { incrementEntryCounts } from "../counters";
-
-import { incrementEntryCounts } from '../counters';
 import { archiveRecord } from '../archive';
 
 const formatDateForDB = (dateStr: string | null | undefined): string | null => {
@@ -40,14 +38,14 @@ export const createGamcaTokenPayment = async (body: any, db: any) => {
     const newPaidCash = currentPaidCash + amountPaidCash;
     const newPaidInBank = currentPaidInBank + amountPaidBank;
 
-    // Insert payment record
+    // Insert payment record - using DB column names: payed_cash, paid_bank
     const newPayment = await db
       .insertInto('gamca_token_payments')
       .values({
         gamca_token_id: body.gamca_token_id,
         payment_date: formatDateForDB(body.payment_date) || now.toISOString().split('T')[0],
-        paid_cash: amountPaidCash,
-        paid_in_bank: amountPaidBank,
+        payed_cash: amountPaidCash,  // DB column name
+        paid_bank: amountPaidBank,   // DB column name
         bank_title: body.bank_title || null,
         recorded_by: body.recorded_by,
         created_at: now,
@@ -127,8 +125,9 @@ export const updateGamcaTokenPayment = async (paymentId: number, body: any, db: 
       };
     }
 
-    const oldCash = parseFloat(currentPayment.paid_cash) || 0;
-    const oldBank = parseFloat(currentPayment.paid_in_bank) || 0;
+    // Use DB column names: payed_cash, paid_bank
+    const oldCash = parseFloat(currentPayment.payed_cash) || 0;
+    const oldBank = parseFloat(currentPayment.paid_bank) || 0;
     const newCash = parseFloat(body.paid_cash) || 0;
     const newBank = parseFloat(body.paid_in_bank) || 0;
 
@@ -154,12 +153,13 @@ export const updateGamcaTokenPayment = async (paymentId: number, body: any, db: 
     const newPaidCash = parseFloat(currentToken.paid_cash) + cashDiff;
     const newPaidInBank = parseFloat(currentToken.paid_in_bank) + bankDiff;
 
+    // Update payment using DB column names: payed_cash, paid_bank
     const updatedPayment = await db
       .updateTable('gamca_token_payments')
       .set({
         payment_date: formatDateForDB(body.payment_date),
-        paid_cash: newCash,
-        paid_in_bank: newBank,
+        payed_cash: newCash,  // DB column name
+        paid_bank: newBank,   // DB column name
         bank_title: body.bank_title || null,
         recorded_by: body.recorded_by,
         remaining_amount: newRemaining,
@@ -212,8 +212,9 @@ export const deleteGamcaTokenPayment = async (paymentId: number, db: any) => {
       };
     }
 
-    const cashAmount = parseFloat(paymentRecord.paid_cash) || 0;
-    const bankAmount = parseFloat(paymentRecord.paid_in_bank) || 0;
+    // Use DB column names: payed_cash, paid_bank
+    const cashAmount = parseFloat(paymentRecord.payed_cash) || 0;
+    const bankAmount = parseFloat(paymentRecord.paid_bank) || 0;
 
     const currentToken = await db
       .selectFrom('gamca_token')
@@ -274,8 +275,6 @@ export const createGamcaToken = async (body: any, db: any) => {
     const entryMatch = body.entry.match(/(\d+)\/\d+/);
     const currentEntryNumber = entryMatch ? parseInt(entryMatch[1]) : null;
 
-
-
     const newGamcaToken = await db
       .insertInto('gamca_token')
       .values({
@@ -300,7 +299,7 @@ export const createGamcaToken = async (body: any, db: any) => {
         initial_paid_cash: body.paid_cash || 0,
         initial_paid_in_bank: body.paid_in_bank || 0,
         initial_remaining_amount: body.receivable_amount - (body.paid_cash || 0) - (body.paid_in_bank || 0),
-        pay_from_bank_card: body.pay_from_bank_card || null,  // Add this
+        pay_from_bank_card: body.pay_from_bank_card || null,
         card_amount: body.card_amount || 0,
         created_at: now,
         updated_at: now,
@@ -308,11 +307,9 @@ export const createGamcaToken = async (body: any, db: any) => {
       .returningAll()
       .executeTakeFirst();
 
-
-
     if (newGamcaToken && currentEntryNumber) {
       console.log('Calling incrementEntryCounts for GAMCA');
-      await incrementEntryCounts('gamca', currentEntryNumber, db); // Use 'gamca' not 'gamca_token'
+      await incrementEntryCounts('gamca', currentEntryNumber, db);
     }
     return {
       status: 'success',
@@ -375,7 +372,7 @@ export const updateGamcaToken = async (id: number, body: any, db: any) => {
         initial_paid_cash: current.initial_paid_cash ?? (body.paid_cash || 0),
         initial_paid_in_bank: current.initial_paid_in_bank ?? (body.paid_in_bank || 0),
         initial_remaining_amount: current?.initial_remaining_amount || (body.receivable_amount - (body.paid_cash || 0) - (body.paid_in_bank || 0)),
-        pay_from_bank_card: body.pay_from_bank_card || null,  // Add this
+        pay_from_bank_card: body.pay_from_bank_card || null,
         card_amount: body.card_amount || 0,
         updated_at: now,
       })
