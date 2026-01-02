@@ -23,6 +23,7 @@ export const createTicket = async (body: any, db: any) => {
         entry: body.entry,
         customer_add: body.customer_add,
         reference: body.reference || null, // Handle empty string
+        prn: body.prn || null,
         depart_date: formatDateForDB(body.depart_date), // Convert empty string to null
         return_date: formatDateForDB(body.return_date), // Convert empty string to null
         sector: body.sector,
@@ -91,6 +92,7 @@ export const updateTicket = async (id: number, body: any, db: any) => {
         entry: body.entry,
         customer_add: body.customer_add,
         reference: body.reference || null, // Handle empty string
+        prn: body.prn,
         depart_date: formatDateForDB(body.depart_date), // Convert empty string to null
         return_date: formatDateForDB(body.return_date), // Convert empty string to null
         sector: body.sector,
@@ -484,5 +486,3 @@ export const deletePayment = async (paymentId: number, db: any) => {
 };
 
 // tickets/index.ts
-
-

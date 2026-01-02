@@ -1,17 +1,24 @@
 import { incrementEntryCounts } from "../counters";
 import { archiveRecord } from '../archive';
 
-
-export const createProtector = async (body: any, db:any) => {
+export const createProtector = async (body: any, db: any) => {
   try {
     const now = new Date();
-    const [currentEntryNumber] = body.entry.split('/').map(Number);
+    
+    // Extract the numeric part from entry string like "PR 123/456"
+    let currentEntryNumber = 0;
+    if (body.entry) {
+      // Remove any non-numeric characters except /
+      const cleanEntry = body.entry.replace(/[^\d\/]/g, '');
+      const parts = cleanEntry.split('/');
+      currentEntryNumber = parseInt(parts[0]) || 0;
+    }
 
     const newProtector = await db
       .insertInto('protector')
       .values({
         name: body.name,
-         entry: body.entry,
+        entry: body.entry,
         passport: body.passport,
         reference: body.reference,
         mcb_fee_6000_date: body.mcb_fee_6000_date,
@@ -26,9 +33,11 @@ export const createProtector = async (body: any, db:any) => {
       })
       .returningAll()
       .executeTakeFirst();
-        if (newProtector) {
-            await incrementEntryCounts('protector', currentEntryNumber, db); // Update entry_counters table
-          }
+
+    if (newProtector && currentEntryNumber > 0) {
+      console.log('Incrementing entry count for protector:', currentEntryNumber);
+      await incrementEntryCounts('protector', currentEntryNumber, db);
+    }
 
     return {
       status: 'success',
@@ -36,7 +45,7 @@ export const createProtector = async (body: any, db:any) => {
       message: 'Protector created successfully',
       protector: newProtector
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in createProtector:', error);
     return {
       status: 'error',
@@ -47,7 +56,7 @@ export const createProtector = async (body: any, db:any) => {
   }
 };
 
-export const getProtectors = async (db:any) => {
+export const getProtectors = async (db: any) => {
   try {
     const protectors = await db
       .selectFrom('protector')
@@ -59,7 +68,7 @@ export const getProtectors = async (db:any) => {
       code: 200,
       protectors: protectors
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in getProtectors:', error);
     return {
       status: 'error',
@@ -70,14 +79,14 @@ export const getProtectors = async (db:any) => {
   }
 };
 
-export const updateProtector = async (id: number, body: any,db:any) => {
+export const updateProtector = async (id: number, body: any, db: any) => {
   try {
-     const now = new Date();
+    const now = new Date();
     const updatedProtector = await db
       .updateTable('protector')
       .set({
         name: body.name,
-         entry: body.entry,
+        entry: body.entry,
         passport: body.passport,
         reference: body.reference,
         mcb_fee_6000_date: body.mcb_fee_6000_date,
@@ -88,7 +97,7 @@ export const updateProtector = async (id: number, body: any,db:any) => {
         file_no: body.file_no,
         employee: body.employee,
         withdraw: body.withdraw,
-        createdAt: now
+        updatedAt: now
       })
       .where('id', '=', id)
       .returningAll()
@@ -108,7 +117,7 @@ export const updateProtector = async (id: number, body: any,db:any) => {
       message: 'Protector updated successfully',
       protector: updatedProtector
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in updateProtector:', error);
     return {
       status: 'error',
@@ -119,7 +128,7 @@ export const updateProtector = async (id: number, body: any,db:any) => {
   }
 };
 
-export const deleteProtector = async (id: number, db:any, deletedBy: string = 'system') => {
+export const deleteProtector = async (id: number, db: any, deletedBy: string = 'system') => {
   try {
     // 1. Fetch protector
     const protectorRecord = await db
