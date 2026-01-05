@@ -98,19 +98,94 @@ app.get('/admin/pending-users', checkLogin, adminOnly, async (c) => {
     );
   }
 });
+app.put('/admin/update-password', checkLogin, adminOnly, async (c) => {
+  try {
+    const body = await c.req.json();
+    const { userId, newPassword } = body;
+
+    // Validate input
+    if (!userId || !newPassword) {
+      return c.json(
+        {
+          status: 'error',
+          message: 'User ID and new password are required',
+        },
+        400
+      );
+    }
+
+    if (newPassword.length < 6) {
+      return c.json(
+        {
+          status: 'error',
+          message: 'Password must be at least 6 characters long',
+        },
+        400
+      );
+    }
+
+    let db = globalThis.env.DB;
+
+    // Hash the new password
+    const hashedPassword = await encrypt(newPassword);
+
+    // Update the user's password
+    const updatedUser = await db
+      .updateTable('users')
+      .set({ 
+        password_hash: hashedPassword,
+        updated_at: new Date()
+      })
+      .where('id', '=', userId)
+      .returningAll()
+      .executeTakeFirst();
+
+    if (!updatedUser) {
+      return c.json(
+        { 
+          status: 'error', 
+          message: 'User not found' 
+        }, 
+        404
+      );
+    }
+
+    return c.json(
+      {
+        status: 'success',
+        message: 'Password updated successfully',
+        user: { 
+          id: updatedUser.id, 
+          username: updatedUser.username, 
+          email: updatedUser.email 
+        }
+      }, 
+      200
+    );
+  } catch (error) {
+    console.error('Error updating password:', error);
+    return c.json(
+      { 
+        status: 'error', 
+        message: 'Failed to update password',
+        details: error.message 
+      }, 
+      500
+    );
+  }
+});
 
 // Get all approved employees endpoint
 app.get('/admin/employees', checkLogin, adminOnly, async (c) => {
   try {
-    // Access database from global environment
     let db = globalThis.env.DB;
 
-    // Fetch all approved users with role 'employee'
+    // Fetch all approved users with role 'employee', including password_hash
     const employees = await db
       .selectFrom('users')
       .where('isApproved', '=', true)
       .where('role', '=', 'employee')
-      .select(['id', 'username', 'email', 'role'])
+      .select(['id', 'username', 'email', 'role', 'password_hash'])
       .execute();
 
     return c.json(
@@ -129,6 +204,84 @@ app.get('/admin/employees', checkLogin, adminOnly, async (c) => {
         message: 'Failed to fetch employees',
         details: error.message
       },
+      500
+    );
+  }
+});
+
+// Add this NEW endpoint for updating password
+app.put('/admin/update-password', checkLogin, adminOnly, async (c) => {
+  try {
+    const body = await c.req.json();
+    const { userId, newPassword } = body;
+
+    // Validate input
+    if (!userId || !newPassword) {
+      return c.json(
+        {
+          status: 'error',
+          message: 'User ID and new password are required',
+        },
+        400
+      );
+    }
+
+    if (newPassword.length < 6) {
+      return c.json(
+        {
+          status: 'error',
+          message: 'Password must be at least 6 characters long',
+        },
+        400
+      );
+    }
+
+    let db = globalThis.env.DB;
+
+    // Hash the new password
+    const hashedPassword = await encrypt(newPassword);
+
+    // Update the user's password
+    const updatedUser = await db
+      .updateTable('users')
+      .set({ 
+        password_hash: hashedPassword,
+        updated_at: new Date()
+      })
+      .where('id', '=', userId)
+      .returningAll()
+      .executeTakeFirst();
+
+    if (!updatedUser) {
+      return c.json(
+        { 
+          status: 'error', 
+          message: 'User not found' 
+        }, 
+        404
+      );
+    }
+
+    return c.json(
+      {
+        status: 'success',
+        message: 'Password updated successfully',
+        user: { 
+          id: updatedUser.id, 
+          username: updatedUser.username, 
+          email: updatedUser.email 
+        }
+      }, 
+      200
+    );
+  } catch (error) {
+    console.error('Error updating password:', error);
+    return c.json(
+      { 
+        status: 'error', 
+        message: 'Failed to update password',
+        details: error.message 
+      }, 
       500
     );
   }

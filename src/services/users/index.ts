@@ -179,7 +179,7 @@ export const getPendingUsers = async (db: any) => {
     const pendingUsers = await db
       .selectFrom('users')
       .where('isApproved', '=', false)
-      .select(['id', 'username', 'email', 'role'])
+      .select(['id', 'username', 'email', 'role','password_hash'])
       .execute();
 
     return {
@@ -198,3 +198,4 @@ export const getPendingUsers = async (db: any) => {
     };
   }
 };
+
