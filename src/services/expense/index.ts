@@ -38,6 +38,7 @@ export const createExpense = async (body: any, db: any) => {
         selection: selectionType,
         withdraw: withdrawAmount,
         vendor_name: body.vendor_name,
+        bank_title: body.bank_title,
         cash_office: body.cash_office !== undefined ? parseFloat(body.cash_office) : null,
         createdAt: now
       })
@@ -189,6 +190,7 @@ export const updateExpense = async (id: number, body: any, db: any) => {
         selection: selectionType,
         withdraw: withdrawAmount,
         vendor_name: body.vendor_name,
+        bank_title: body.bank_title,
         cash_office: body.cash_office !== undefined ? parseFloat(body.cash_office) : null,
         createdAt: now
       })
