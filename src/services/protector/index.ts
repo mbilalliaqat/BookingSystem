@@ -97,7 +97,7 @@ export const updateProtector = async (id: number, body: any, db: any) => {
         file_no: body.file_no,
         employee: body.employee,
         withdraw: body.withdraw,
-        updatedAt: now
+        updatedat: now
       })
       .where('id', '=', id)
       .returningAll()
