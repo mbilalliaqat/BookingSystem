@@ -10,8 +10,7 @@ export const getEntryCounts = async (db: KyselyDatabaseOperations) => {
     let counts = await db.selectFrom('entry_counters').selectAll().execute();
 
     // Ensure all required rows exist
-    const requiredTypes = ['global', 'gamca', 'ticket', 'umrah', 'services', 'other-cp','navtcc','protector','refunded','refund','account','e-number','bank-detail'];
-    
+const requiredTypes = ['global', 'gamca', 'ticket', 'umrah', 'visa', 'services', 'other-cp','navtcc','expense', 'protector','refunded','refund','account','e-number','bank-detail' ,'agent','vender'];    
     for (const type of requiredTypes) {
       if (!counts.find(c => c.form_type === type)) {
         await db
@@ -74,20 +73,24 @@ export const incrementEntryCounts = async (formType: string, actualEntryNumber: 
       // Only increment global count for main form types if this is a new entry
       let newGlobalCount = currentGlobalCount;
       // All form types that should contribute to global count
-      const mainFormTypes = [
-        'gamca', 
-        'ticket', 
-        'umrah', 
-        'services', 
-        'other-cp',
-        'navtcc',
-        'protector',
-        'refunded',
-        'refund',
-        'account',
-        'e-number',
-        'bank-detail'
-      ];
+     const mainFormTypes = [
+  'gamca', 
+  'ticket', 
+  'umrah', 
+  'visa',  // ✅ Add this
+  'services', 
+  'other-cp',
+  'navtcc',
+  'expense', 
+  'protector',
+  'refunded',
+  'refund',
+  'account',
+  'e-number',
+  'bank-detail',
+  'agent', 
+  'vender'
+];
       
       if (actualEntryNumber > currentFormCount && mainFormTypes.includes(formType)) {
         newGlobalCount = currentGlobalCount + 1;

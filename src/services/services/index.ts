@@ -372,7 +372,7 @@ export const deleteServicePayment = async (paymentId: number, db: any) => {
 
 export const deleteService = async (id: number, db: any, deletedBy: string = 'system') => {
   try {
-    // 1. Fetch service
+    // 1. Get the service record
     const serviceRecord = await db
       .selectFrom('services')
       .selectAll()
@@ -380,48 +380,106 @@ export const deleteService = async (id: number, db: any, deletedBy: string = 'sy
       .executeTakeFirst();
 
     if (!serviceRecord) {
-      return { status: 'error', code: 404, message: 'Service not found' };
+      return {
+        status: 'error',
+        code: 404,
+        message: 'Service not found'
+      };
     }
 
-    // 2. Get related payments
+    // 2. Get all payments for this service
     const payments = await db
       .selectFrom('services_payments')
       .selectAll()
       .where('service_id', '=', id)
       .execute();
 
-    // 3. Archive service with related data
-    const archiveResult = await archiveRecord('services', id, { service: serviceRecord, payments }, db, deletedBy);
+    // 3. Archive service with related payments
+    const archiveResult = await archiveRecord('services', id, {
+      service: serviceRecord,
+      payments
+    }, db, deletedBy);
 
     if (archiveResult.status !== 'success') {
-      return { status: 'error', code: 500, message: 'Failed to archive service', errors: archiveResult.message };
+      console.error('Failed to archive service:', archiveResult.message);
     }
 
-    // 4. Delete payments
-    await db
-      .deleteFrom('services_payments')
-      .where('service_id', '=', id)
+    // 4. Delete related Agent records - ONLY by exact entry match
+    const relatedAgents = await db
+      .selectFrom('agent')
+      .select('id')
+      .where('entry', '=', serviceRecord.entry)  // EXACT match only
       .execute();
 
-    // 5. Delete service
-    const deleted = await db
+    console.log(`Found ${relatedAgents.length} related agent records for service ${id} (entry: ${serviceRecord.entry})`);
+
+    // Delete each agent record
+    for (const agent of relatedAgents) {
+      const { deleteAgent } = await import('../agent/index');
+      await deleteAgent(agent.id, db, deletedBy);
+    }
+
+    // 5. Delete related Vendor records - ONLY by exact entry match
+    const relatedVendors = await db
+      .selectFrom('vender')
+      .select('id')
+      .where('entry', '=', serviceRecord.entry)  // EXACT match only
+      .execute();
+
+    console.log(`Found ${relatedVendors.length} related vendor records for service ${id} (entry: ${serviceRecord.entry})`);
+
+    for (const vendor of relatedVendors) {
+      const { deleteVendor } = await import('../vender/index');
+      await deleteVendor(vendor.id, db, deletedBy);
+    }
+
+    // 6. Delete related Office Account records - ONLY by exact entry match
+    const relatedAccounts = await db
+      .selectFrom('office_accounts')
+      .select('id')
+      .where('entry', '=', serviceRecord.entry)  // EXACT match only
+      .execute();
+
+    console.log(`Found ${relatedAccounts.length} related office account records for service ${id} (entry: ${serviceRecord.entry})`);
+
+    for (const account of relatedAccounts) {
+      const { deleteEntry } = await import('../accountsRecord/index');
+      await deleteEntry(account.id, db, deletedBy);
+    }
+
+    // 7. Delete all payments for this service
+    if (payments.length > 0) {
+      await db
+        .deleteFrom('services_payments')
+        .where('service_id', '=', id)
+        .execute();
+      console.log(`Deleted ${payments.length} payment records for service ${id}`);
+    }
+
+    // 8. Delete the service record
+    await db
       .deleteFrom('services')
       .where('id', '=', id)
-      .returningAll()
-      .executeTakeFirst();
+      .execute();
 
     return {
       status: 'success',
       code: 200,
-      message: 'Service archived and deleted successfully',
-      data: deleted,
+      message: `Service and all related records deleted successfully (${relatedAgents.length} agent records, ${relatedVendors.length} vendor records, ${relatedAccounts.length} account records, ${payments.length} payments)`,
+      data: serviceRecord,
+      deletedRecords: {
+        agents: relatedAgents.length,
+        vendors: relatedVendors.length,
+        accounts: relatedAccounts.length,
+        payments: payments.length
+      }
     };
   } catch (error: any) {
     console.error('Error in deleteService:', error);
     return {
       status: 'error',
       code: 500,
-      message: 'Failed to delete service',
+      message: 'Failed to delete service and related records',
       errors: error.message,
     };
   }

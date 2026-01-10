@@ -1,5 +1,8 @@
 import { incrementEntryCounts  } from "../counters";
 import { archiveRecord } from '../archive';
+import { deleteAgent } from '../agent/index';
+import { deleteVendor } from '../vender/index';
+import { deleteEntry } from '../accountsRecord/index';
 
 // Helper function to convert empty strings to null for date fields
 const formatDateForDB = (dateStr: string | null | undefined): string | null => {
@@ -149,29 +152,42 @@ export const updateTicket = async (id: number, body: any, db: any) => {
   }
 };
 
-export const deleteTicket = async (id: number, db: any, deletedBy: string = 'system') => {
+   export const deleteTicket = async (id: number, db: any, deletedBy: string = 'system') => {
   try {
-    // 1. Get ticket data
-    const ticketRecord = await db
+    // 1. Get the ticket record
+    const ticket = await db
       .selectFrom('ticket')
       .selectAll()
       .where('id', '=', id)
       .executeTakeFirst();
 
-    if (!ticketRecord) {
+    if (!ticket) {
       return { status: 'error', code: 404, message: 'Ticket not found' };
     }
 
-    // 2. Get related payments
+    // 2. Get all payments for this ticket
     const payments = await db
       .selectFrom('ticket_payments')
       .selectAll()
       .where('ticket_id', '=', id)
       .execute();
 
-    // 3. Archive ticket with related data
-    const archiveResult = await archiveRecord('ticket', id, {
-      ticket: ticketRecord,
+    // 3. Delete related Agent records - ONLY by exact entry match
+    const relatedAgents = await db
+      .selectFrom('agent')
+      .select('id')
+      .where('entry', '=', ticket.entry)  // EXACT match only
+      .execute();
+
+    console.log(`Found ${relatedAgents.length} related agent records for ticket ${id} (entry: ${ticket.entry})`);
+
+    // Delete each agent record
+    for (const agent of relatedAgents) {
+      await deleteAgent(agent.id, db, deletedBy);
+    }
+
+  const archiveResult = await archiveRecord('ticket', id, {
+      ticket: ticket,
       payments: payments
     }, db, deletedBy);
 
@@ -179,31 +195,66 @@ export const deleteTicket = async (id: number, db: any, deletedBy: string = 'sys
       return { status: 'error', code: 500, message: 'Failed to archive ticket', errors: archiveResult.message };
     }
 
-    // 4. Delete payments
-    await db
-      .deleteFrom('ticket_payments')
-      .where('ticket_id', '=', id)
+    // 4. Delete related Vendor records - ONLY by exact entry match
+    const relatedVendors = await db
+      .selectFrom('vender')
+      .select('id')
+      .where('entry', '=', ticket.entry)  // EXACT match only
       .execute();
 
-    // 5. Delete ticket
-    const deletedTicket = await db
+    console.log(`Found ${relatedVendors.length} related vendor records for ticket ${id} (entry: ${ticket.entry})`);
+
+    for (const vendor of relatedVendors) {
+      await deleteVendor(vendor.id, db, deletedBy);
+    }
+
+    // 5. Delete related Office Account records - ONLY by exact entry match
+    const relatedAccounts = await db
+      .selectFrom('office_accounts')
+      .select('id')
+      .where('entry', '=', ticket.entry)  // EXACT match only
+      .execute();
+
+    console.log(`Found ${relatedAccounts.length} related office account records for ticket ${id} (entry: ${ticket.entry})`);
+
+    for (const account of relatedAccounts) {
+      await deleteEntry(account.id, db, deletedBy);
+    }
+
+    // 6. Delete all payments for this ticket
+    if (payments.length > 0) {
+      await db
+        .deleteFrom('ticket_payments')
+        .where('ticket_id', '=', id)
+        .execute();
+      console.log(`Deleted ${payments.length} payment records for ticket ${id}`);
+    }
+
+    // 7. Delete the ticket
+    await db
       .deleteFrom('ticket')
       .where('id', '=', id)
-      .returningAll()
-      .executeTakeFirst();
+      .execute();
 
     return {
       status: 'success',
       code: 200,
-      message: 'Ticket archived and deleted successfully',
-      ticket: deletedTicket,
+      message: `Ticket and all related records deleted successfully (${relatedAgents.length} agent records, ${relatedVendors.length} vendor records, ${relatedAccounts.length} account records, ${payments.length} payments)`,
+      ticket,
+      deletedRecords: {
+        agents: relatedAgents.length,
+        vendors: relatedVendors.length,
+        accounts: relatedAccounts.length,
+        payments: payments.length
+      }
     };
   } catch (error) {
+    console.error('Error deleting ticket:', error);
     return {
       status: 'error',
       code: 500,
-      message: 'Failed to delete ticket',
-      errors: error.message,
+      message: 'Failed to delete ticket and related records',
+      errors: error.message
     };
   }
 };

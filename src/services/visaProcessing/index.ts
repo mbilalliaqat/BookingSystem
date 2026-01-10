@@ -241,6 +241,7 @@ export const createVisaPayment = async (body: any, db: any) => {
 
 export const deleteVisaProcessing = async (id: number, db: any, deletedBy: string = 'system') => {
   try {
+    // 1. Get the visa processing record
     const visaProcessingRecord = await db
       .selectFrom('visa_processing')
       .selectAll()
@@ -255,49 +256,100 @@ export const deleteVisaProcessing = async (id: number, db: any, deletedBy: strin
       };
     }
 
-    // Get related payments
+    // 2. Get all payments for this visa processing
     const payments = await db
       .selectFrom('visa_processing_payments')
       .selectAll()
       .where('visa_processing_id', '=', id)
       .execute();
 
-    // Archive visa processing with related payments
+    // 3. Archive visa processing with related payments
     const archiveResult = await archiveRecord('visa_processing', id, {
       visa_processing: visaProcessingRecord,
       payments: payments
     }, db, deletedBy);
 
     if (archiveResult.status !== 'success') {
-      return { status: 'error', code: 500, message: 'Failed to archive visa processing', errors: archiveResult.message };
+      console.error('Failed to archive visa processing:', archiveResult.message);
     }
 
-    const deletedPayments = await db
-      .deleteFrom('visa_processing_payments')
-      .where('visa_processing_id', '=', id)
+    // 4. Delete related Agent records - ONLY by exact entry match
+    const relatedAgents = await db
+      .selectFrom('agent')
+      .select('id')
+      .where('entry', '=', visaProcessingRecord.entry)  // EXACT match only
       .execute();
 
-    console.log(`Deleted ${deletedPayments.length || 0} related payment records for visa processing ID: ${id}`);
+    console.log(`Found ${relatedAgents.length} related agent records for visa processing ${id} (entry: ${visaProcessingRecord.entry})`);
 
-    const deletedVisaProcessing = await db
+    // Delete each agent record
+    for (const agent of relatedAgents) {
+      const { deleteAgent } = await import('../agent/index');
+      await deleteAgent(agent.id, db, deletedBy);
+    }
+
+    // 5. Delete related Vendor records - ONLY by exact entry match
+    const relatedVendors = await db
+      .selectFrom('vender')
+      .select('id')
+      .where('entry', '=', visaProcessingRecord.entry)  // EXACT match only
+      .execute();
+
+    console.log(`Found ${relatedVendors.length} related vendor records for visa processing ${id} (entry: ${visaProcessingRecord.entry})`);
+
+    for (const vendor of relatedVendors) {
+      const { deleteVendor } = await import('../vender/index');
+      await deleteVendor(vendor.id, db, deletedBy);
+    }
+
+    // 6. Delete related Office Account records - ONLY by exact entry match
+    const relatedAccounts = await db
+      .selectFrom('office_accounts')
+      .select('id')
+      .where('entry', '=', visaProcessingRecord.entry)  // EXACT match only
+      .execute();
+
+    console.log(`Found ${relatedAccounts.length} related office account records for visa processing ${id} (entry: ${visaProcessingRecord.entry})`);
+
+    for (const account of relatedAccounts) {
+      const { deleteEntry } = await import('../accountsRecord/index');
+      await deleteEntry(account.id, db, deletedBy);
+    }
+
+    // 7. Delete all payments for this visa processing
+    if (payments.length > 0) {
+      await db
+        .deleteFrom('visa_processing_payments')
+        .where('visa_processing_id', '=', id)
+        .execute();
+      console.log(`Deleted ${payments.length} payment records for visa processing ${id}`);
+    }
+
+    // 8. Delete the visa processing record
+    await db
       .deleteFrom('visa_processing')
       .where('id', '=', id)
-      .returningAll()
-      .executeTakeFirst();
+      .execute();
 
     return {
       status: 'success',
       code: 200,
-      message: `Visa processing record archived and deleted successfully${deletedPayments.length > 0 ? ` along with ${deletedPayments.length} related payment records` : ''}`
+      message: `Visa processing record and all related records deleted successfully (${relatedAgents.length} agent records, ${relatedVendors.length} vendor records, ${relatedAccounts.length} account records, ${payments.length} payments)`,
+      deletedRecords: {
+        agents: relatedAgents.length,
+        vendors: relatedVendors.length,
+        accounts: relatedAccounts.length,
+        payments: payments.length
+      }
     };
   } catch (error) {
     console.error('Error in deleteVisaProcessing service:', error);
     return {
       status: 'error',
       code: 500,
-      message: 'Failed to delete visa processing record',
+      message: 'Failed to delete visa processing record and related records',
       errors: (error as any).message
-    };
+    }; 
   }
 };
 

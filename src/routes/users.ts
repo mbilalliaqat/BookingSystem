@@ -3,7 +3,10 @@ import { loginUser, signupUser, getPendingUsers } from '../services/users';
 import { checkLogin, adminOnly } from '../middlewares';
 import { incrementEntryCounts, getEntryCounts } from '../services/counters';
 import { createUmrahPayment, getUmrahPaymentsByUmrahId, updateUmrahPayment, deleteUmrahPayment } from '../services/umrahPayment';
-import { deleteUmrah } from '../services/umrah';
+import { archiveRecord } from '../services/archive';
+import { deleteAgent } from '../services/agent/index';
+import { deleteVendor } from '../services/vender/index';
+import { deleteEntry } from '../services/accountsRecord/index';
 import { encrypt } from '../utils/encryption';
 
 
@@ -634,24 +637,118 @@ app.delete('/umrah/:id', async (c) => {
   try {
     const id = Number(c.req.param('id'));
     const deletedBy = c.req.header('X-User-Name') || 'system';
+    let db = globalThis.env.DB;
 
-    const result = await deleteUmrah(id, globalThis.env.DB, deletedBy);
+    // 1. Get the umrah record
+    const umrah = await db
+      .selectFrom('Umrah')
+      .selectAll()
+      .where('id', '=', id)
+      .executeTakeFirst();
+
+    if (!umrah) {
+      return c.json(
+        {
+          status: 'error',
+          message: 'Umrah booking not found'
+        },
+        404
+      );
+    }
+
+    // 2. Get all payments for this umrah
+    const payments = await db
+      .selectFrom('umrah_payments')
+      .selectAll()
+      .where('umrah_id', '=', id)
+      .execute();
+
+    // 3. Delete related Agent records - ONLY by exact entry match
+    const relatedAgents = await db
+      .selectFrom('agent')
+      .select('id')
+      .where('entry', '=', umrah.entry)  // EXACT match only
+      .execute();
+
+    console.log(`Found ${relatedAgents.length} related agent records for umrah ${id} (entry: ${umrah.entry})`);
+
+    // Delete each agent record
+    for (const agent of relatedAgents) {
+      await deleteAgent(agent.id, db, deletedBy);
+    }
+
+    // 4. Delete related Vendor records - ONLY by exact entry match
+    const relatedVendors = await db
+      .selectFrom('vender')
+      .select('id')
+      .where('entry', '=', umrah.entry)  // EXACT match only
+      .execute();
+
+    console.log(`Found ${relatedVendors.length} related vendor records for umrah ${id} (entry: ${umrah.entry})`);
+
+    for (const vendor of relatedVendors) {
+      await deleteVendor(vendor.id, db, deletedBy);
+    }
+
+      const archiveResult = await archiveRecord('Umrah', id, {
+          umrah: umrah,
+          payments: payments
+        }, db, deletedBy);
+    
+        if (archiveResult.status !== 'success') {
+          return { status: 'error', code: 500, message: 'Failed to archive umrah', errors: archiveResult.message };
+        }
+
+
+    // 5. Delete related Office Account records - ONLY by exact entry match
+    const relatedAccounts = await db
+      .selectFrom('office_accounts')
+      .select('id')
+      .where('entry', '=', umrah.entry)  // EXACT match only
+      .execute();
+
+    console.log(`Found ${relatedAccounts.length} related office account records for umrah ${id} (entry: ${umrah.entry})`);
+
+    for (const account of relatedAccounts) {
+      await deleteEntry(account.id, db, deletedBy);
+    }
+
+    // 6. Delete all payments for this umrah
+    if (payments.length > 0) {
+      await db
+        .deleteFrom('umrah_payments')
+        .where('umrah_id', '=', id)
+        .execute();
+      console.log(`Deleted ${payments.length} payment records for umrah ${id}`);
+    }
+
+    // 7. Delete the umrah booking
+    await db
+      .deleteFrom('Umrah')
+      .where('id', '=', id)
+      .execute();
 
     return c.json(
       {
-        status: result.status,
-        message: result.message,
-        ...(result.umrah && { umrah: result.umrah }),
-        ...(result.errors && { errors: result.errors }),
+        status: 'success',
+        message: `Umrah booking and all related records deleted successfully (${relatedAgents.length} agent records, ${relatedVendors.length} vendor records, ${relatedAccounts.length} account records, ${payments.length} payments)`,
+        umrah,
+        deletedRecords: {
+          agents: relatedAgents.length,
+          vendors: relatedVendors.length,
+          accounts: relatedAccounts.length,
+          payments: payments.length
+        }
       },
-      result.code
+      200
     );
   } catch (error) {
     console.error('Error deleting umrah:', error);
     return c.json(
       {
         status: 'error',
-        message: 'Failed to delete umrah',
+        message: 'Failed to delete umrah and related records',
+        details: error.message
       },
       500
     );
